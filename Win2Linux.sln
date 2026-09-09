@@ -1,0 +1,50 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9821D7D7-4574-410E-902F-9B3734EB0ABD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win2Linux.Core", "src\Win2Linux.Core\Win2Linux.Core.csproj", "{D3507D61-B7B7-42BB-8036-8402B8DA5E7F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win2Linux.Cli", "src\Win2Linux.Cli\Win2Linux.Cli.csproj", "{3D14FF73-C87F-4E39-BA31-6926CF45C8CA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win2Linux.UI", "src\Win2Linux.UI\Win2Linux.UI.csproj", "{C5B9B46B-AA70-4D33-9CC9-F3A021B73409}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8B13D60A-79BB-4DF0-B7B8-57D57A53800A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win2Linux.Tests", "tests\Win2Linux.Tests\Win2Linux.Tests.csproj", "{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D3507D61-B7B7-42BB-8036-8402B8DA5E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3507D61-B7B7-42BB-8036-8402B8DA5E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3507D61-B7B7-42BB-8036-8402B8DA5E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3507D61-B7B7-42BB-8036-8402B8DA5E7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D14FF73-C87F-4E39-BA31-6926CF45C8CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D14FF73-C87F-4E39-BA31-6926CF45C8CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D14FF73-C87F-4E39-BA31-6926CF45C8CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D14FF73-C87F-4E39-BA31-6926CF45C8CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5B9B46B-AA70-4D33-9CC9-F3A021B73409}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{C5B9B46B-AA70-4D33-9CC9-F3A021B73409}.Debug|Any CPU.Build.0 = Debug|x64
+		{C5B9B46B-AA70-4D33-9CC9-F3A021B73409}.Release|Any CPU.ActiveCfg = Release|x64
+		{C5B9B46B-AA70-4D33-9CC9-F3A021B73409}.Release|Any CPU.Build.0 = Release|x64
+		{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D3507D61-B7B7-42BB-8036-8402B8DA5E7F} = {9821D7D7-4574-410E-902F-9B3734EB0ABD}
+		{3D14FF73-C87F-4E39-BA31-6926CF45C8CA} = {9821D7D7-4574-410E-902F-9B3734EB0ABD}
+		{C5B9B46B-AA70-4D33-9CC9-F3A021B73409} = {9821D7D7-4574-410E-902F-9B3734EB0ABD}
+		{AC6777C0-122E-4E26-B9E5-7C33BEF17C5F} = {8B13D60A-79BB-4DF0-B7B8-57D57A53800A}
+	EndGlobalSection
+EndGlobal
