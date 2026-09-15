@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Win2Linux_UI.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:Win2Linux_UI"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer x:Name="MainScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="36,20,36,40" MaxWidth="1100" HorizontalAlignment="Stretch">
+            <!-- Main Configuration & Setup View -->
+            <StackPanel x:Name="SetupView" Spacing="24">
+            
+            <!-- Header -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Win2Linux Dual-Boot Setup" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="Install a certified Secure-Boot Linux distribution directly alongside Windows without a USB flash drive." 
+                               Foreground="#888888" FontSize="14" />
+                </StackPanel>
+                <Button Grid.Column="1" Click="RefreshDiscovery_Click" VerticalAlignment="Center" Padding="14,8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                        <TextBlock Text="Rescan Hardware" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- Preflight Status Badges -->
+            <Border Background="#1E1E1E" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE7F4;" Foreground="#107C41" FontSize="24" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock Text="Firmware Mode" FontSize="11" Foreground="#888888" />
+                            <TextBlock x:Name="TxtFirmwareMode" Text="UEFI" FontWeight="SemiBold" FontSize="14" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE8B9;" Foreground="#107C41" FontSize="24" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock Text="Secure Boot" FontSize="11" Foreground="#888888" />
+                            <TextBlock x:Name="TxtSecureBoot" Text="Active and Enforced" FontWeight="SemiBold" FontSize="14" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE72E;" Foreground="#D83B01" FontSize="24" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock Text="System Disk Protection" FontSize="11" Foreground="#888888" />
+                            <TextBlock x:Name="TxtProtectionStatus" Text="Disk 0 (C:) Locked" FontWeight="SemiBold" FontSize="14" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE7E8;" Foreground="#0078D4" FontSize="24" VerticalAlignment="Center" />
+                        <StackPanel>
+                            <TextBlock Text="WSL Helper" FontSize="11" Foreground="#888888" />
+                            <TextBlock x:Name="TxtWslStatus" Text="WSL2 Ready" FontWeight="SemiBold" FontSize="14" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Step 1: Distribution Selector -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="1. Choose Linux Distribution (Official Secure Boot Certified)" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="All distributions below are signed by the Microsoft 3rd Party UEFI Certificate Authority for seamless boot." 
+                           Foreground="#888888" FontSize="13" />
+
+                <Grid x:Name="DistroGrid" HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Ubuntu -->
+                    <Border x:Name="CardUbuntu" Grid.Column="0" Margin="0,0,6,0"
+                            Background="#252525" BorderBrush="#E95420" BorderThickness="2" CornerRadius="8" Padding="14"
+                            Tapped="SelectDistro_Tapped" Tag="ubuntu">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <TextBlock Text="Ubuntu 26.04 LTS" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#E95420" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="LTS" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="Industry standard, rock-solid compatibility and Subiquity autoinstall." 
+                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
+                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
+                            </StackPanel>
+                            <TextBlock Text="Default FS: ext4" FontSize="11" Foreground="#777777" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Fedora Workstation (Full ISO) -->
+                    <Border x:Name="CardFedora" Grid.Column="1" Margin="3,0,3,0"
+                            Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
+                            Tapped="SelectDistro_Tapped" Tag="fedora">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <TextBlock Text="Fedora 44" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#294172" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Live" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="Full Workstation ISO (2.7 GB). Complete offline GNOME installer." 
+                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
+                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
+                            </StackPanel>
+                            <TextBlock Text="Default FS: Btrfs" FontSize="11" Foreground="#777777" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Fedora Netinstall -->
+                    <Border x:Name="CardFedoraNetinstall" Grid.Column="2" Margin="3,0,3,0"
+                            Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
+                            Tapped="SelectDistro_Tapped" Tag="fedora-netinstall">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <TextBlock Text="Fedora 44" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#3C5A99" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Net" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="Netinstall (1.1 GB). Downloads packages during install — needs internet." 
+                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
+                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
+                            </StackPanel>
+                            <TextBlock Text="Default FS: Btrfs" FontSize="11" Foreground="#777777" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Debian -->
+                    <Border x:Name="CardDebian" Grid.Column="3" Margin="3,0,3,0"
+                            Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
+                            Tapped="SelectDistro_Tapped" Tag="debian">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <TextBlock Text="Debian 12" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#A80030" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Stable" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="The universal OS, celebrated for ultimate stability and minimalism." 
+                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
+                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
+                            </StackPanel>
+                            <TextBlock Text="Default FS: ext4" FontSize="11" Foreground="#777777" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- openSUSE -->
+                    <Border x:Name="CardOpenSuse" Grid.Column="4" Margin="6,0,0,0"
+                            Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
+                            Tapped="SelectDistro_Tapped" Tag="opensuse">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <TextBlock Text="openSUSE TW" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#173F35" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Rolling" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                </Border>
+                            </Grid>
+                            <TextBlock Text="Rolling release with YaST and native Snapper snapshot rollback." 
+                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
+                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
+                            </StackPanel>
+                            <TextBlock Text="Default FS: Btrfs" FontSize="11" Foreground="#777777" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </StackPanel>
+
+            <!-- Step 2: Storage Target & Interactive Visual Disk Shrinker -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="2. Storage Target and Visual Partition Shrinker" FontSize="18" FontWeight="SemiBold" />
+
+                <!-- Protected System Disk (Non-selectable visual lock) -->
+                <Border Background="#1C1C1C" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <FontIcon Glyph="&#xE72E;" Foreground="#D83B01" FontSize="28" Margin="0,0,16,0" VerticalAlignment="Center" />
+
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="TxtProtectedDiskTitle" Text="Disk 0 — SAMSUNG MZAL81T0HFLB-00BL2 (953 GB NVMe)" FontWeight="SemiBold" FontSize="14" />
+                                <Border Background="#D83B01" CornerRadius="4" Padding="6,1">
+                                    <TextBlock Text="PROTECTED SYSTEM DISK" Foreground="White" FontSize="10" FontWeight="Bold" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock x:Name="TxtProtectedDiskSub" Text="Contains C: (Windows System Drive). Strictly locked — will never be resized, partitioned, or modified." 
+                                       FontSize="12" Foreground="#888888" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="2" Text="READ-ONLY" VerticalAlignment="Center" FontWeight="SemiBold" 
+                                   Foreground="#888888" FontSize="12" />
+                    </Grid>
+                </Border>
+
+                <!-- Target Secondary SSD Visualizer & Interactive Slider -->
+                <Border Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <StackPanel Spacing="2">
+                                <TextBlock x:Name="TxtTargetDiskTitle" Text="Disk 1 — GIGABYTE GP-GSM2NE3100TNTD (953 GB NVMe)" FontWeight="SemiBold" FontSize="15" />
+                                <TextBlock x:Name="TxtTargetDiskSub" Text="Target Volume: D: [Data] (NTFS) • Total: 953 GB • Free Space: 752 GB" 
+                                           FontSize="12" Foreground="#AAAAAA" />
+                            </StackPanel>
+                            <Border Background="#107C41" HorizontalAlignment="Right" VerticalAlignment="Center" CornerRadius="4" Padding="8,3">
+                                <TextBlock Text="ELIGIBLE TARGET" Foreground="White" FontWeight="SemiBold" FontSize="11" />
+                            </Border>
+                        </Grid>
+
+                        <!-- Visual Disk Segment Bar -->
+                        <StackPanel Spacing="8">
+                            <Grid x:Name="DiskBarContainer" Height="36" CornerRadius="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="ColUsedData" Width="*" />
+                                    <ColumnDefinition x:Name="ColRemainingWindows" Width="*" />
+                                    <ColumnDefinition x:Name="ColLinuxSpace" Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Existing Windows Used Data -->
+                                <Border Grid.Column="0" Background="#1B4F72" CornerRadius="6,0,0,6">
+                                    <TextBlock x:Name="TxtBarUsed" Text="Existing Data: ~201 GB" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                               Foreground="White" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="4,0" />
+                                </Border>
+
+                                <!-- Retained Windows Free Space -->
+                                <Border Grid.Column="1" Background="#2980B9">
+                                    <TextBlock x:Name="TxtBarWindowsFree" Text="Windows Free: ~252 GB" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                               Foreground="White" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="4,0" />
+                                </Border>
+
+                                <!-- New Linux Target Partition Space -->
+                                <Border x:Name="BarLinuxSpace" Grid.Column="2" Background="#E95420" CornerRadius="0,6,6,0">
+                                    <TextBlock x:Name="TxtBarLinux" Text="New Linux Partition: 500 GB" VerticalAlignment="Center" HorizontalAlignment="Center" 
+                                               Foreground="White" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="4,0" />
+                                </Border>
+                            </Grid>
+
+                            <!-- Legend -->
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                    <Border Width="12" Height="12" Background="#1B4F72" CornerRadius="2" />
+                                    <TextBlock Text="Existing Files (D:)" FontSize="11" Foreground="#AAAAAA" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <Border Width="12" Height="12" Background="#2980B9" CornerRadius="2" />
+                                    <TextBlock Text="Retained Windows Space" FontSize="11" Foreground="#AAAAAA" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                    <Border x:Name="LegendLinuxColor" Width="12" Height="12" Background="#E95420" CornerRadius="2" />
+                                    <TextBlock x:Name="LegendLinuxText" Text="Linux Space (ext4 / btrfs)" FontSize="11" Foreground="#AAAAAA" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Interactive Slider -->
+                        <StackPanel Spacing="6" Margin="0,12,0,0">
+                            <Grid>
+                                <TextBlock Text="Reserve Space for Linux Installation" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock x:Name="TxtSliderValue" Text="500 GB" HorizontalAlignment="Right" FontWeight="Bold" FontSize="16" Foreground="#E95420" />
+                            </Grid>
+                            <Slider x:Name="DiskShrinkSlider" Minimum="30" Maximum="730" Value="500" 
+                                    SmallChange="10" LargeChange="50" ValueChanged="DiskShrinkSlider_ValueChanged" />
+                            <Grid>
+                                <TextBlock Text="Min: 30 GB" FontSize="11" Foreground="#666666" />
+                                <TextBlock x:Name="TxtMaxShrink" Text="Max: 732 GB (Preserves 20 GB Windows buffer)" HorizontalAlignment="Right" 
+                                           FontSize="11" Foreground="#666666" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Safety & Execution Footer -->
+            <StackPanel Spacing="16" Margin="0,8,0,0">
+                <Border Background="#1A2D3F" BorderBrush="#0078D4" BorderThickness="1" CornerRadius="6" Padding="14,10">
+                    <TextBlock Text="Volume D: will be shrunk safely using Windows Storage Management. The newly freed space is left unallocated for the Linux installer environment to partition." 
+                               Foreground="#85C1E9" FontSize="12" />
+                </Border>
+
+                <Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="#888888" />
+                        <TextBlock Text="Requires local Administrator privileges for Windows storage operations." 
+                                   FontSize="12" Foreground="#888888" />
+                    </StackPanel>
+
+                    <Button Click="StartInstallation_Click" Background="#0078D4" Foreground="White"
+                            HorizontalAlignment="Right" Padding="24,10" CornerRadius="4">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock x:Name="BtnInstallText" Text="Prepare and Stage Ubuntu 26.04" FontWeight="SemiBold" FontSize="14" />
+                            <FontIcon Glyph="&#xE72A;" FontSize="14" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+            </StackPanel>
+            <!-- End of SetupView -->
+
+            <!-- Active Staging & Installation Dashboard (Displayed upon Confirm) -->
+            <StackPanel x:Name="StagingView" Visibility="Collapsed" Spacing="24" HorizontalAlignment="Stretch">
+                <!-- Header Banner -->
+                <Grid>
+                    <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ProgressRing x:Name="StagingRing" IsActive="True" Width="24" Height="24" Foreground="#0078D4" />
+                            <TextBlock x:Name="TxtStagingTitle" Text="Staging Dual-Boot Setup..." FontSize="24" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <TextBlock x:Name="TxtStagingSubtitle" Text="Preparing automated Linux installer environment on secondary disk." Foreground="#888888" FontSize="14" />
+                    </StackPanel>
+                    <TextBlock x:Name="TxtStagingPercent" Text="0%" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" FontSize="28" Foreground="#0078D4" />
+                </Grid>
+
+                <!-- Progress Bar -->
+                <ProgressBar x:Name="StagingProgressBar" Maximum="100" Value="0" Height="10" CornerRadius="5" Foreground="#0078D4" HorizontalAlignment="Stretch" />
+
+                <!-- Step Summary Card -->
+                <Border Background="#1E1E1E" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="20">
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <TextBlock x:Name="TxtCurrentStepTitle" Text="Step 1 of 10: Verifying System Disk Safety" FontWeight="SemiBold" FontSize="16" />
+                            <TextBlock x:Name="TxtStatusBadge" Text="IN PROGRESS" HorizontalAlignment="Right" FontWeight="Bold" FontSize="12" Foreground="#0078D4" />
+                        </Grid>
+
+                        <!-- ISO Download sub-progress (visible only during step 3) -->
+                        <Border x:Name="DownloadProgressCard" Visibility="Collapsed"
+                                Background="#141414" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <TextBlock Text="Downloading ISO" FontSize="12" Foreground="#888888" />
+                                    <TextBlock x:Name="TxtDownloadSize" Text="0 MB / 0 MB" HorizontalAlignment="Right" FontSize="12" Foreground="#AAAAAA" />
+                                </Grid>
+                                <ProgressBar x:Name="DownloadProgressBar" Maximum="100" Value="0" Height="6" CornerRadius="3" Foreground="#E95420" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Target Distribution" FontSize="12" Foreground="#888888" />
+                                <TextBlock x:Name="TxtTargetDistro" Text="Fedora Workstation 41" FontWeight="SemiBold" FontSize="14" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Target Storage" FontSize="12" Foreground="#888888" />
+                                <TextBlock x:Name="TxtTargetStorage" Text="Disk 1 (D:) • 192 GB" FontWeight="SemiBold" FontSize="14" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Protected System Disk" FontSize="12" Foreground="#888888" />
+                                <TextBlock Text="Disk 0 (C:) • Locked 🔒" FontWeight="SemiBold" FontSize="14" Foreground="#107C41" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Real-Time Terminal Log -->
+                <StackPanel Spacing="8">
+                    <Grid>
+                        <TextBlock Text="Execution &amp; Transaction Log" FontWeight="SemiBold" FontSize="14" Foreground="#AAAAAA" />
+                        <!-- 10-step mini progress pills -->
+                        <StackPanel x:Name="StepPillsPanel" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                            <Border x:Name="Pill1" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill2" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill3" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill4" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill5" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill6" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill7" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill8" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                            <Border x:Name="Pill9" Width="18" Height="6" CornerRadius="3" Background="#333" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Background="#111111" BorderBrush="#2A2A2A" BorderThickness="1" CornerRadius="6" Padding="14" Height="220">
+                        <ScrollViewer x:Name="LogScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <TextBlock x:Name="TxtLiveLogs" FontFamily="Consolas, Cascadia Code, monospace" FontSize="12" Foreground="#D4D4D4" TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+
+                <!-- Post-Staging Action Card (shown when complete) -->
+                <Border x:Name="RebootCard" Visibility="Collapsed" Background="#0E2E1D" BorderBrush="#107C41" BorderThickness="1.5" CornerRadius="8" Padding="20">
+                    <Grid>
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE73E;" Foreground="#107C41" FontSize="22" />
+                                <TextBlock Text="Dual-Boot Staging Succeeded!" FontWeight="Bold" FontSize="18" Foreground="#107C41" />
+                            </StackPanel>
+                            <TextBlock Text="On restart, your PC will launch the automated Linux installation alongside Windows." Foreground="#CCCCCC" FontSize="13" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button Click="RebootLater_Click" Content="Reboot Later" Padding="18,10" />
+                            <Button Click="RebootNow_Click" Background="#107C41" Foreground="White" Padding="24,10" FontWeight="Bold" FontSize="14">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE777;" FontSize="16" />
+                                    <TextBlock Text="Reboot Now into Linux Setup" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+            <!-- End of StagingView -->
+
+        </Grid>
+    </ScrollViewer>
+</Page>

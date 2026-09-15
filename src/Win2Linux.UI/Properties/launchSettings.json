@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Win2Linux.UI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Win2Linux.UI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
