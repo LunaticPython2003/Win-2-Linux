@@ -41,8 +41,8 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 ### Download Pre-built Binaries (Recommended)
 You can download the latest pre-compiled release from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
 
-- **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Complete WinUI 3 desktop application with Fluent Design.
-  1. Download and extract the `.zip` archive.
+- **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** (or smaller **[Win2Linux-v1.0.0-win-x64.7z](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**): Complete WinUI 3 desktop application with Fluent Design.
+  1. Download and extract the archive.
   2. Right-click `Start-Win2Linux.cmd` (or `Win2Linux.UI.exe`) and select **Run as administrator**.
   3. Select your preferred Linux distribution and target partition, then begin setup!
 - **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Standalone single-file CLI for command-line users.
