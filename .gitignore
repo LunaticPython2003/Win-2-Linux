@@ -2,6 +2,7 @@
 [Bb]in/
 [Oo]bj/
 target/
+dist/
 *.pdb
 
 # Visual Studio / VS Code
