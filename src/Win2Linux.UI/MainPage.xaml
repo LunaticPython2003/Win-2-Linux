@@ -88,7 +88,6 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <!-- Ubuntu -->
@@ -112,18 +111,18 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Fedora Workstation (Full ISO) -->
+                    <!-- Fedora (Live) -->
                     <Border x:Name="CardFedora" Grid.Column="1" Margin="3,0,3,0"
                             Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
                             Tapped="SelectDistro_Tapped" Tag="fedora">
                         <StackPanel Spacing="8">
                             <Grid>
                                 <TextBlock Text="Fedora 44" FontWeight="Bold" FontSize="15" />
-                                <Border Background="#294172" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                <Border Background="#1D99F3" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
                                     <TextBlock Text="Live" Foreground="White" FontSize="11" FontWeight="Bold" />
                                 </Border>
                             </Grid>
-                            <TextBlock Text="Full Workstation ISO (2.7 GB). Complete offline GNOME installer." 
+                            <TextBlock Text="Full Live ISO (2.7 GB). Includes DE selection (Plasma / GNOME)." 
                                        FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                                 <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
@@ -133,39 +132,18 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Fedora Netinstall -->
-                    <Border x:Name="CardFedoraNetinstall" Grid.Column="2" Margin="3,0,3,0"
+                    <!-- Linux Mint -->
+                    <Border x:Name="CardLinuxMint" Grid.Column="2" Margin="3,0,3,0"
                             Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
-                            Tapped="SelectDistro_Tapped" Tag="fedora-netinstall">
+                            Tapped="SelectDistro_Tapped" Tag="linuxmint">
                         <StackPanel Spacing="8">
                             <Grid>
-                                <TextBlock Text="Fedora 44" FontWeight="Bold" FontSize="15" />
-                                <Border Background="#3C5A99" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
-                                    <TextBlock Text="Net" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                <TextBlock Text="Linux Mint 22.1" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#87CF3E" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Cinnamon" Foreground="#121212" FontSize="11" FontWeight="Bold" />
                                 </Border>
                             </Grid>
-                            <TextBlock Text="Netinstall (1.1 GB). Downloads packages during install — needs internet." 
-                                       FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
-                                <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
-                            </StackPanel>
-                            <TextBlock Text="Default FS: Btrfs" FontSize="11" Foreground="#777777" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Debian -->
-                    <Border x:Name="CardDebian" Grid.Column="3" Margin="3,0,3,0"
-                            Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
-                            Tapped="SelectDistro_Tapped" Tag="debian">
-                        <StackPanel Spacing="8">
-                            <Grid>
-                                <TextBlock Text="Debian 12" FontWeight="Bold" FontSize="15" />
-                                <Border Background="#A80030" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
-                                    <TextBlock Text="Stable" Foreground="White" FontSize="11" FontWeight="Bold" />
-                                </Border>
-                            </Grid>
-                            <TextBlock Text="The universal OS, celebrated for ultimate stability and minimalism." 
+                            <TextBlock Text="Familiar, elegant, and stable. Built on Ubuntu LTS with preconfigured multimedia." 
                                        FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                                 <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
@@ -175,27 +153,86 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- openSUSE -->
-                    <Border x:Name="CardOpenSuse" Grid.Column="4" Margin="6,0,0,0"
+                    <!-- Zorin OS -->
+                    <Border x:Name="CardZorin" Grid.Column="3" Margin="6,0,0,0"
                             Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="14"
-                            Tapped="SelectDistro_Tapped" Tag="opensuse">
+                            Tapped="SelectDistro_Tapped" Tag="zorin">
                         <StackPanel Spacing="8">
                             <Grid>
-                                <TextBlock Text="openSUSE TW" FontWeight="Bold" FontSize="15" />
-                                <Border Background="#173F35" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
-                                    <TextBlock Text="Rolling" Foreground="White" FontSize="11" FontWeight="Bold" />
+                                <TextBlock Text="Zorin OS 17.2" FontWeight="Bold" FontSize="15" />
+                                <Border Background="#13A5E5" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Core" Foreground="White" FontSize="11" FontWeight="Bold" />
                                 </Border>
                             </Grid>
-                            <TextBlock Text="Rolling release with YaST and native Snapper snapshot rollback." 
+                            <TextBlock Text="Stunning Windows-like desktop designed for seamless everyday transition." 
                                        FontSize="12" Foreground="#AAAAAA" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
                                 <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#107C41" />
                                 <TextBlock Text="MS UEFI CA Signed" FontSize="11" Foreground="#CCCCCC" />
                             </StackPanel>
-                            <TextBlock Text="Default FS: Btrfs" FontSize="11" Foreground="#777777" />
+                            <TextBlock Text="Default FS: ext4" FontSize="11" Foreground="#777777" />
                         </StackPanel>
                     </Border>
                 </Grid>
+
+                <!-- Fedora Desktop Environment Selection Panel (Visible when Fedora is active) -->
+                <Border x:Name="PanelFedoraDeSelection" Visibility="Collapsed"
+                        Background="#1E2330" BorderBrush="#1D99F3" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,4,0,0">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE770;" Foreground="#1D99F3" FontSize="16" VerticalAlignment="Center" />
+                                <TextBlock Text="Fedora Desktop Environment (DE)" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Border Background="#107C41" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                <TextBlock Text="Interactive DE Selector" Foreground="White" FontSize="10" FontWeight="Bold" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="Select your desktop environment. KDE Plasma is configured with modern Wayland and selected by default."
+                                   FontSize="12" Foreground="#AAAAAA" />
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- KDE Plasma (Preferred / Default) -->
+                            <Border x:Name="CardDeKde" Grid.Column="0"
+                                    Background="#22283A" BorderBrush="#1D99F3" BorderThickness="2" CornerRadius="6" Padding="12"
+                                    Tapped="SelectFedoraDE_Tapped" Tag="kde">
+                                <StackPanel Spacing="6">
+                                    <Grid>
+                                        <TextBlock Text="KDE Plasma (Preferred)" FontWeight="Bold" FontSize="14" Foreground="#1D99F3" />
+                                        <Border x:Name="BadgeDeKdeBorder" Background="#1D99F3" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                            <TextBlock x:Name="BadgeDeKde" Text="SELECTED" Foreground="White" FontSize="10" FontWeight="Bold" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Text="Ultra-fast, customizable, lightweight Qt 6 &amp; Wayland desktop session."
+                                               FontSize="11" Foreground="#CCCCCC" TextWrapping="Wrap" />
+                                    <TextBlock Text="Kickstart Group: @^kde-desktop-environment" FontSize="10" Foreground="#888888" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- GNOME Workstation -->
+                            <Border x:Name="CardDeGnome" Grid.Column="1"
+                                    Background="#222222" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="6" Padding="12"
+                                    Tapped="SelectFedoraDE_Tapped" Tag="gnome">
+                                <StackPanel Spacing="6">
+                                    <Grid>
+                                        <TextBlock Text="GNOME Workstation" FontWeight="Bold" FontSize="14" Foreground="#E0E0E0" />
+                                        <Border x:Name="BadgeDeGnomeBorder" Background="#3D3D3D" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
+                                            <TextBlock x:Name="BadgeDeGnome" Text="AVAILABLE" Foreground="#CCCCCC" FontSize="10" FontWeight="Bold" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Text="Default Fedora Workstation desktop environment with GNOME Shell."
+                                               FontSize="11" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                                    <TextBlock Text="Kickstart Group: @^workstation-product-environment" FontSize="10" Foreground="#888888" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <!-- Step 2: Storage Target & Interactive Visual Disk Shrinker -->

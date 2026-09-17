@@ -1,5 +1,15 @@
 namespace Win2Linux.Core.Distros;
 
+public record DesktopEnvironmentOption(
+    string Id,
+    string DisplayName,
+    string Description,
+    string PackageGroup,
+    string IsoDownloadUrl,
+    string ChecksumUrl,
+    string[]? IsoMirrorUrls = null
+);
+
 public record DistroProfile(
     string Id,
     string DisplayName,
@@ -23,8 +33,30 @@ public record DistroProfile(
     string AutoinstallKernelArgs,
     // Ordered mirror fallbacks tried before IsoDownloadUrl (fastest/closest first).
     // If empty, IsoDownloadUrl is used directly.
-    string[]? IsoMirrorUrls = null
-);
+    string[]? IsoMirrorUrls = null,
+    // Desktop Environment options (e.g. for Fedora: KDE Plasma vs GNOME)
+    IReadOnlyList<DesktopEnvironmentOption>? DesktopEnvironments = null,
+    string? SelectedDesktopEnvironment = null
+)
+{
+    public DistroProfile WithDesktopEnvironment(string deId)
+    {
+        if (DesktopEnvironments == null || DesktopEnvironments.Count == 0)
+            return this;
+
+        var option = DesktopEnvironments.FirstOrDefault(de => de.Id.Equals(deId, StringComparison.OrdinalIgnoreCase));
+        if (option == null)
+            return this;
+
+        return this with
+        {
+            SelectedDesktopEnvironment = option.Id,
+            IsoDownloadUrl = option.IsoDownloadUrl,
+            ChecksumUrl = option.ChecksumUrl,
+            IsoMirrorUrls = option.IsoMirrorUrls ?? IsoMirrorUrls
+        };
+    }
+}
 
 public static class DistroRegistry
 {
@@ -53,9 +85,9 @@ public static class DistroRegistry
         ),
         new(
             Id: "fedora",
-            DisplayName: "Fedora Workstation 44",
-            Description: "Modern, cutting-edge desktop Linux distribution with GNOME. Full live ISO (2.7 GB) — includes a complete offline installer. Red Hat is the primary author and maintainer of the UEFI shim.",
-            AccentColor: "#294172",
+            DisplayName: "Fedora 44",
+            Description: "Modern, cutting-edge desktop Linux distribution. Features full live ISO with complete offline installer and official Microsoft UEFI CA signed shim.",
+            AccentColor: "#1D99F3",
             SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
             SecureBootSigner: "Red Hat Inc.",
             EfiVendorDir: "fedora",
@@ -63,8 +95,8 @@ public static class DistroRegistry
             UefiBootLabel: "Fedora",
             DefaultFilesystem: "btrfs",
             DefaultVersion: "44-1.7",
-            IsoDownloadUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
-            ChecksumUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM",
+            IsoDownloadUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+            ChecksumUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-44-1.7-x86_64-CHECKSUM",
             UnattendedMechanism: "Anaconda Kickstart (ks.cfg)",
             IsoKernelPath: "images/pxeboot/vmlinuz",
             IsoInitrdPath: "images/pxeboot/initrd.img",
@@ -72,84 +104,88 @@ public static class DistroRegistry
             IsoGrubEfiPath: "EFI/fedora/grubx64.efi",
             AutoinstallKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
             IsoMirrorUrls: [
-                // Tsinghua TUNA (Beijing CDN — excellent peering with India via Singapore)
-                "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
-                // USTC (University of Science and Technology of China — reliable alternate)
-                "https://mirrors.ustc.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
-                // Official Fedora CDN (last resort — may be geo-throttled from India)
-                "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
-            ]
+                "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                "https://mirrors.ustc.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+            ],
+            DesktopEnvironments: [
+                new(
+                    Id: "kde",
+                    DisplayName: "KDE Plasma",
+                    Description: "Lightweight, beautifully customizable desktop with Qt 6 and Wayland (Preferred).",
+                    PackageGroup: "@^kde-desktop-environment",
+                    IsoDownloadUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                    ChecksumUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-44-1.7-x86_64-CHECKSUM",
+                    IsoMirrorUrls: [
+                        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                        "https://mirrors.ustc.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                        "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
+                    ]
+                ),
+                new(
+                    Id: "gnome",
+                    DisplayName: "GNOME Workstation",
+                    Description: "Standard default Fedora Workstation desktop environment with GNOME Shell.",
+                    PackageGroup: "@^workstation-product-environment",
+                    IsoDownloadUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
+                    ChecksumUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM",
+                    IsoMirrorUrls: [
+                        "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
+                        "https://mirrors.ustc.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
+                        "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
+                    ]
+                )
+            ],
+            SelectedDesktopEnvironment: "kde"
         ),
         new(
-            Id: "fedora-netinstall",
-            DisplayName: "Fedora Workstation 44 (Netinstall)",
-            Description: "Fedora 44 network installer — minimal 1.1 GB ISO that downloads packages at install time. Requires a working internet connection during installation.",
-            AccentColor: "#3C5A99",
+            Id: "linuxmint",
+            DisplayName: "Linux Mint 22.1 (Xia)",
+            Description: "Elegant, modern, and familiar desktop experience based on Ubuntu LTS. Features Microsoft UEFI CA signed shim and out-of-the-box multimedia support.",
+            AccentColor: "#87CF3E",
             SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
-            SecureBootSigner: "Red Hat Inc.",
-            EfiVendorDir: "fedora",
+            SecureBootSigner: "Canonical Ltd.",
+            EfiVendorDir: "ubuntu",
             EfiBinary: "shimx64.efi",
-            UefiBootLabel: "Fedora",
-            DefaultFilesystem: "btrfs",
-            DefaultVersion: "44-1.7-netinstall",
-            IsoDownloadUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-44-1.7.iso",
-            ChecksumUrl: "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/iso/Fedora-Everything-44-1.7-x86_64-CHECKSUM",
-            UnattendedMechanism: "Anaconda Kickstart (ks.cfg)",
-            IsoKernelPath: "images/pxeboot/vmlinuz",
-            IsoInitrdPath: "images/pxeboot/initrd.img",
-            IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
-            IsoGrubEfiPath: "EFI/fedora/grubx64.efi",
-            AutoinstallKernelArgs: "inst.repo=https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/ inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
-            IsoMirrorUrls: [
-                // Tsinghua TUNA (Beijing CDN — excellent peering with India via Singapore)
-                "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-44-1.7.iso",
-                // USTC (University of Science and Technology of China — reliable alternate)
-                "https://mirrors.ustc.edu.cn/fedora/releases/44/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-44-1.7.iso",
-                // Official Fedora CDN (last resort — may be geo-throttled from India)
-                "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-44-1.7.iso",
-            ]
-        ),
-        new(
-            Id: "debian",
-            DisplayName: "Debian 12 (Bookworm)",
-            Description: "The universal operating system, renowned for rock-solid stability and predictable package management.",
-            AccentColor: "#A80030",
-            SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
-            SecureBootSigner: "Debian Project",
-            EfiVendorDir: "debian",
-            EfiBinary: "shimx64.efi",
-            UefiBootLabel: "debian",
+            UefiBootLabel: "Linux Mint",
             DefaultFilesystem: "ext4",
-            DefaultVersion: "12.8.0",
-            IsoDownloadUrl: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.8.0-amd64-netinst.iso",
-            ChecksumUrl: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS",
-            UnattendedMechanism: "Debian Preseed (preseed.cfg)",
-            IsoKernelPath: "install.amd/vmlinuz",
-            IsoInitrdPath: "install.amd/initrd.gz",
+            DefaultVersion: "22.1",
+            IsoDownloadUrl: "https://mirrors.kernel.org/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso",
+            ChecksumUrl: "https://ftp.heanet.ie/mirrors/linuxmint.com/stable/22.1/sha256sum.txt",
+            UnattendedMechanism: "Ubiquity Preseed (preseed.cfg)",
+            IsoKernelPath: "casper/vmlinuz",
+            IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
-            IsoGrubEfiPath: "EFI/debian/grubx64.efi",
-            AutoinstallKernelArgs: "auto=true priority=critical preseed/file=/cdrom/win2linux/unattended/preseed.cfg quiet"
+            IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
+            AutoinstallKernelArgs: "boot=casper automatic-ubiquity quiet splash ---",
+            IsoMirrorUrls: [
+                "https://mirrors.kernel.org/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso",
+                "https://mirrors.layeronline.com/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso"
+            ]
         ),
         new(
-            Id: "opensuse",
-            DisplayName: "openSUSE Tumbleweed",
-            Description: "Rolling release powerhouse with native Snapper rollback support and first-class Secure Boot signing.",
-            AccentColor: "#173f35",
+            Id: "zorin",
+            DisplayName: "Zorin OS 17.2",
+            Description: "Stunning Windows-like desktop designed for seamless transition from Windows. Signed by Canonical under Microsoft UEFI CA for effortless dual-booting.",
+            AccentColor: "#13A5E5",
             SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
-            SecureBootSigner: "SUSE LLC",
-            EfiVendorDir: "opensuse",
-            EfiBinary: "shim.efi",
-            UefiBootLabel: "openSUSE",
-            DefaultFilesystem: "btrfs",
-            DefaultVersion: "Snapshot",
-            IsoDownloadUrl: "https://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Current.iso",
-            ChecksumUrl: "https://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Current.iso.sha256",
-            UnattendedMechanism: "AutoYaST (autoinst.xml)",
-            IsoKernelPath: "boot/x86_64/loader/linux",
-            IsoInitrdPath: "boot/x86_64/loader/initrd",
+            SecureBootSigner: "Canonical Ltd.",
+            EfiVendorDir: "ubuntu",
+            EfiBinary: "shimx64.efi",
+            UefiBootLabel: "Zorin",
+            DefaultFilesystem: "ext4",
+            DefaultVersion: "17.2",
+            IsoDownloadUrl: "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso",
+            ChecksumUrl: "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso.sha256",
+            UnattendedMechanism: "Subiquity Autoinstall (cloud-init)",
+            IsoKernelPath: "casper/vmlinuz",
+            IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
-            IsoGrubEfiPath: "EFI/opensuse/grubx64.efi",
-            AutoinstallKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image rd.live.overlay.overlayfs=1 autoyast=device://disk/by-label/LINUXEFI/win2linux/unattended/autoyast.xml quiet splash"
+            IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
+            AutoinstallKernelArgs: "boot=casper quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
+            IsoMirrorUrls: [
+                "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso"
+            ]
         ),
     };
 }

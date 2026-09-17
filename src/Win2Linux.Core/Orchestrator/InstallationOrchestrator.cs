@@ -541,24 +541,25 @@ public static class InstallationOrchestrator
     // Unattended config generation
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static string GetUnattendedFilename(string distroId) => distroId.ToLowerInvariant() switch
+    public static string GetUnattendedFilename(string distroId) => distroId.ToLowerInvariant() switch
     {
         "ubuntu" => "autoinstall.yaml",
-        "fedora" or "fedora-netinstall" => "kickstart.ks",
-        "debian" => "preseed.cfg",
-        "opensuse" => "autoyast.xml",
+        "fedora" => "kickstart.ks",
+        "linuxmint" => "preseed.cfg",
+        "zorin" => "autoinstall.yaml",
         _ => "autoinstall.yaml"
     };
 
-    private static string GenerateUnattendedConfig(InstallationPlan plan)
+    public static string GenerateUnattendedConfig(InstallationPlan plan)
     {
         var linuxSizeMb = (long)(plan.ReservedGb * 1024);
 
         return plan.SelectedDistro.Id.ToLowerInvariant() switch
         {
             "ubuntu" => GenerateUbuntuAutoinstall(plan, linuxSizeMb),
-            "fedora" or "fedora-netinstall" => GenerateFedoraKickstart(plan, linuxSizeMb),
-            "debian" => GenerateDebianPreseed(plan),
+            "fedora" => GenerateFedoraKickstart(plan, linuxSizeMb),
+            "linuxmint" => GenerateMintPreseed(plan),
+            "zorin" => GenerateZorinAutoinstall(plan, linuxSizeMb),
             _ => "# Default unattended configuration\n"
         };
     }
@@ -656,10 +657,89 @@ public static class InstallationOrchestrator
             """;
     }
 
-    private static string GenerateFedoraKickstart(InstallationPlan plan, long linuxSizeMb)
+    private static string GenerateZorinAutoinstall(InstallationPlan plan, long linuxSizeMb)
     {
         return $$"""
-            # Fedora 44 Workstation Kickstart Configuration
+            #cloud-config
+            autoinstall:
+              version: 1
+              interactive-sections: []
+              locale: en_US.UTF-8
+              keyboard:
+                layout: us
+              identity:
+                realname: Linux User
+                username: user
+                hostname: zorin-dualboot
+                password: '$6$rounds=4096$win2linux$placeholder'
+              storage:
+                layout:
+                  name: custom
+                config:
+                  - type: disk
+                    id: target-disk
+                    serial: "{{plan.Target.DiskSerial}}"
+                    preserve: true
+                  - type: partition
+                    id: esp-partition
+                    device: target-disk
+                    number: -1
+                    flag: boot
+                    preserve: true
+                  - type: format
+                    id: esp-format
+                    fstype: fat32
+                    volume: esp-partition
+                    preserve: true
+                  - type: mount
+                    id: esp-mount
+                    path: /boot/efi
+                    device: esp-format
+                  - type: partition
+                    id: root-partition
+                    device: target-disk
+                    size: -1
+                    preserve: false
+                  - type: format
+                    id: root-format
+                    fstype: {{plan.SelectedDistro.DefaultFilesystem}}
+                    volume: root-partition
+                  - type: mount
+                    id: root-mount
+                    path: /
+                    device: root-format
+              packages:
+                - shim-signed
+                - grub-efi-amd64-signed
+                - efibootmgr
+              late-commands:
+                - >-
+                  curtin in-target --target=/target --
+                  bash -c 'DISK=$(ls /dev/disk/by-id/ | grep "{{plan.Target.DiskSerial}}" | grep -v part | head -1);
+                  ESP_PART=$(ls /dev/disk/by-id/ | grep "{{plan.Target.DiskSerial}}" | grep "part" | sort | head -1);
+                  PART_NUM=$(echo "$ESP_PART" | grep -oP "part\K\d+");
+                  efibootmgr --create
+                  --disk /dev/disk/by-id/$DISK
+                  --part $PART_NUM
+                  --label "{{plan.SelectedDistro.UefiBootLabel}}"
+                  --loader "\\EFI\\{{plan.SelectedDistro.EfiVendorDir}}\\{{plan.SelectedDistro.EfiBinary}}"
+                  --unicode ""'
+                - curtin in-target --target=/target -- update-grub
+            """;
+    }
+
+    private static string GenerateFedoraKickstart(InstallationPlan plan, long linuxSizeMb)
+    {
+        var dePackageGroup = plan.SelectedDistro.SelectedDesktopEnvironment == "gnome"
+            ? "@^workstation-product-environment"
+            : "@^kde-desktop-environment";
+
+        var deLabel = plan.SelectedDistro.SelectedDesktopEnvironment == "gnome"
+            ? "GNOME Workstation"
+            : "KDE Plasma";
+
+        return $$"""
+            # Fedora 44 ({{deLabel}}) Kickstart Configuration
             # Generated by Win2Linux Dual-Boot Installer
             text
             lang en_US.UTF-8
@@ -676,7 +756,7 @@ public static class InstallationOrchestrator
             part / --fstype={{plan.SelectedDistro.DefaultFilesystem}} --grow --ondisk=disk/by-id/wwn-{{plan.Target.DiskSerial}}
 
             %packages
-            @^workstation-product-environment
+            {{dePackageGroup}}
             kernel
             grub2-efi-x64
             shim-x64
@@ -687,17 +767,22 @@ public static class InstallationOrchestrator
             """;
     }
 
-    private static string GenerateDebianPreseed(InstallationPlan plan)
+    private static string GenerateMintPreseed(InstallationPlan plan)
     {
         return $$"""
-            # Debian 12 Bookworm Preseed Configuration
+            # Linux Mint 22.1 Automatic Ubiquity Preseed Configuration
             # Generated by Win2Linux Dual-Boot Installer
-            d-i debian-installer/locale string en_US
-            d-i console-keymaps-at/keymap select us
+            d-i debian-installer/locale string en_US.UTF-8
+            d-i console-setup/ask_detect boolean false
+            d-i keyboard-configuration/layoutcode string us
             d-i netcfg/choose_interface select auto
-            d-i netcfg/get_hostname string debian-dualboot
+            d-i netcfg/get_hostname string linuxmint-dualboot
 
-            # Automated partition into unallocated space on target secondary disk
+            # Clock and time zone
+            d-i time/zone string UTC
+            d-i clock-setup/utc boolean true
+
+            # Partitioning: install into free unallocated space on secondary disk, preserve D:
             d-i partman-auto/method string regular
             d-i partman-auto/init-automatically-partition select biggest_free
             d-i partman-partitioning/confirm_write_new_label boolean true
@@ -705,10 +790,18 @@ public static class InstallationOrchestrator
             d-i partman/confirm boolean true
             d-i partman/confirm_nooverwrite boolean true
 
-            # Secure Boot EFI bootloader registration
+            # Bootloader: Secure Boot signed grub
             d-i grub-installer/only_debian boolean false
             d-i grub-installer/with_other_os boolean true
             d-i grub-installer/bootdev string default
+
+            # User setup placeholder
+            d-i passwd/user-fullname string Linux User
+            d-i passwd/username string user
+            d-i passwd/user-password-crypted password $6$rounds=4096$win2linux$placeholder
+
+            # Completion
+            ubiquity ubiquity/reboot boolean true
             d-i finish-install/reboot_in_progress note
             """;
     }

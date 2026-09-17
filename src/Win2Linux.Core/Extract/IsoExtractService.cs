@@ -25,7 +25,7 @@ public static class IsoExtractService
     /// which downloads packages from the internet and contains no squashfs image.
     /// </summary>
     public static bool RequiresLiveSquashfs(DistroProfile distro) =>
-        distro.Id is "opensuse" or "fedora";
+        distro.Id is "fedora";
 
     /// <summary>
     /// Extracts all required boot files from the ISO to the staging directories.
@@ -246,6 +246,7 @@ public static class IsoExtractService
             var initrdFound = TryCopyFileFromCandidates(root, distro.IsoInitrdPath, new[]
             {
                 "casper\\initrd",
+                "casper\\initrd.lz",
                 "isolinux\\initrd.img",
                 "images\\pxeboot\\initrd.img",
                 "boot\\x86_64\\loader\\initrd",
@@ -639,13 +640,22 @@ public static class IsoExtractService
 
     private static void ApplySbatUpdatesIfAvailable(DistroProfile distro, string efiStagingDir, IProgress<ProgressUpdate> progress)
     {
-        var candidates = new[]
+        var sbatFolder = distro.Id.ToLowerInvariant();
+        var candidates = new List<string>
         {
-            Path.Combine(AppContext.BaseDirectory, "tools", "sbat", distro.Id.ToLowerInvariant()),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "sbat", distro.Id.ToLowerInvariant()),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Win2Linux.UI", "tools", "sbat", distro.Id.ToLowerInvariant()),
-            Path.Combine(Environment.CurrentDirectory, "src", "Win2Linux.UI", "tools", "sbat", distro.Id.ToLowerInvariant())
+            Path.Combine(AppContext.BaseDirectory, "tools", "sbat", sbatFolder),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "sbat", sbatFolder),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Win2Linux.UI", "tools", "sbat", sbatFolder),
+            Path.Combine(Environment.CurrentDirectory, "src", "Win2Linux.UI", "tools", "sbat", sbatFolder)
         };
+
+        if (distro.Id is "linuxmint" or "zorin")
+        {
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "tools", "sbat", "ubuntu"));
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "sbat", "ubuntu"));
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Win2Linux.UI", "tools", "sbat", "ubuntu"));
+            candidates.Add(Path.Combine(Environment.CurrentDirectory, "src", "Win2Linux.UI", "tools", "sbat", "ubuntu"));
+        }
 
         foreach (var dir in candidates)
         {

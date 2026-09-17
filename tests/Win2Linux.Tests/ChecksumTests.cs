@@ -29,6 +29,35 @@ public class ChecksumTests
     }
 
     [Fact]
+    public void ParsesFedoraKdeBsdChecksumFormat()
+    {
+        var fedoraKdeChecksumContent = """
+            -----BEGIN PGP SIGNED MESSAGE-----
+            Hash: SHA256
+
+            # Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso: 3368683520 bytes
+            SHA256 (Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso) = c8295961d4c41adbf785a31a17c21a971d3b7415fda72dcad0c11c49577bf03a
+            -----BEGIN PGP SIGNATURE-----
+            ...
+            -----END PGP SIGNATURE-----
+            """;
+
+        // Exact match
+        var hash = IsoDownloadService.ParseExpectedHash(
+            fedoraKdeChecksumContent,
+            "Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso");
+
+        Assert.Equal("c8295961d4c41adbf785a31a17c21a971d3b7415fda72dcad0c11c49577bf03a", hash);
+
+        // Fallback match on different naming like Fedora-KDE-Live-x86_64-44-1.7.iso
+        var fallbackHash = IsoDownloadService.ParseExpectedHash(
+            fedoraKdeChecksumContent,
+            "Fedora-KDE-Live-x86_64-44-1.7.iso");
+
+        Assert.Equal("c8295961d4c41adbf785a31a17c21a971d3b7415fda72dcad0c11c49577bf03a", fallbackHash);
+    }
+
+    [Fact]
     public void ParsesUbuntuCoreutilsAsteriskFormat()
     {
         var ubuntuChecksumContent = """

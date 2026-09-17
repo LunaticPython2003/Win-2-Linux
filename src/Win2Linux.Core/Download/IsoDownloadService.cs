@@ -87,18 +87,13 @@ public static class IsoDownloadService
             return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "ubuntu");
 
         if (name.Contains("fedora"))
-        {
-            if (name.Contains("netinst") || name.Contains("everything"))
-                return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "fedora-netinstall")
-                       ?? DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "fedora");
             return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "fedora");
-        }
 
-        if (name.Contains("debian"))
-            return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "debian");
+        if (name.Contains("mint"))
+            return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "linuxmint");
 
-        if (name.Contains("opensuse") || name.Contains("tumbleweed"))
-            return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "opensuse");
+        if (name.Contains("zorin"))
+            return DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == "zorin");
 
         return null;
     }
@@ -130,15 +125,18 @@ public static class IsoDownloadService
         foreach (var file in isoFiles)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (distro.Id == "fedora-netinstall")
-            {
-                if (fileName.Contains("fedora") && (fileName.Contains("netinst") || fileName.Contains("everything")))
-                    return file;
-            }
-            else if (distro.Id == "fedora")
+            if (distro.Id == "fedora")
             {
                 if (fileName.Contains("fedora") && !fileName.Contains("netinst") && !fileName.Contains("everything"))
                     return file;
+            }
+            else if (distro.Id == "linuxmint" && (fileName.Contains("linuxmint") || fileName.Contains("mint")))
+            {
+                return file;
+            }
+            else if (distro.Id == "zorin" && fileName.Contains("zorin"))
+            {
+                return file;
             }
             else if (fileName.Contains(distro.Id.ToLowerInvariant()))
             {
@@ -471,7 +469,28 @@ public static class IsoDownloadService
             }
         }
 
-        // 3. If single-file checksum (e.g. *.sha256 containing just 1 SHA256 hex string)
+        // 3. Fallback for Fedora variant naming (e.g. Fedora-KDE-Desktop-Live vs Fedora-KDE)
+        if (isoFileName.Contains("fedora", StringComparison.OrdinalIgnoreCase))
+        {
+            var isKde = isoFileName.Contains("kde", StringComparison.OrdinalIgnoreCase);
+            var isWorkstation = isoFileName.Contains("workstation", StringComparison.OrdinalIgnoreCase);
+
+            foreach (var line in checksumContent.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = line.Trim();
+                if ((isKde && trimmed.Contains("kde", StringComparison.OrdinalIgnoreCase)) ||
+                    (isWorkstation && trimmed.Contains("workstation", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var match = Regex.Match(trimmed, @"\b([0-9a-fA-F]{64})\b");
+                    if (match.Success)
+                    {
+                        return match.Groups[1].Value.ToLowerInvariant();
+                    }
+                }
+            }
+        }
+
+        // 4. If single-file checksum (e.g. *.sha256 containing just 1 SHA256 hex string)
         var allMatches = Regex.Matches(checksumContent, @"\b([0-9a-fA-F]{64})\b");
         if (allMatches.Count == 1)
         {
@@ -513,15 +532,27 @@ public static class IsoDownloadService
         var candidateUrls = new List<string> { distro.ChecksumUrl };
         if (distro.Id == "fedora")
         {
-            // Fedora Workstation Live mirrors
-            candidateUrls.Add("https://mirror.vcu.edu/pub/gnu_linux/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
-            candidateUrls.Add("https://mirrors.rit.edu/fedora/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
+            if (distro.SelectedDesktopEnvironment == "gnome")
+            {
+                candidateUrls.Add("https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
+                candidateUrls.Add("https://mirrors.ustc.edu.cn/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
+                candidateUrls.Add("https://mirror.vcu.edu/pub/gnu_linux/fedora/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
+                candidateUrls.Add("https://mirrors.rit.edu/fedora/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM");
+            }
+            else
+            {
+                candidateUrls.Add("https://dl.fedoraproject.org/pub/fedora/linux/releases/44/KDE/x86_64/iso/Fedora-KDE-44-1.7-x86_64-CHECKSUM");
+                candidateUrls.Add("https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-44-1.7-x86_64-CHECKSUM");
+                candidateUrls.Add("https://mirrors.ustc.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-44-1.7-x86_64-CHECKSUM");
+            }
         }
-        else if (distro.Id == "fedora-netinstall")
+        else if (distro.Id == "linuxmint")
         {
-            // Fedora netinstall mirrors
-            candidateUrls.Add("https://mirror.vcu.edu/pub/gnu_linux/fedora/releases/44/Everything/x86_64/iso/Fedora-Everything-44-1.7-x86_64-CHECKSUM");
-            candidateUrls.Add("https://mirrors.rit.edu/fedora/fedora/linux/releases/44/Everything/x86_64/iso/Fedora-Everything-44-1.7-x86_64-CHECKSUM");
+            candidateUrls.Add("https://mirrors.kernel.org/linuxmint/stable/22.1/sha256sum.txt");
+        }
+        else if (distro.Id == "zorin")
+        {
+            candidateUrls.Add("https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso.sha256");
         }
 
         var isoFileName = Path.GetFileName(new Uri(distro.IsoDownloadUrl).AbsolutePath);

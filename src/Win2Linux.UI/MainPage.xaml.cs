@@ -115,33 +115,95 @@ public sealed partial class MainPage : Page
             _selectedDistro = distro;
 
             // Reset all card borders
-            CardUbuntu.BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            var defaultStroke = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            CardUbuntu.BorderBrush = defaultStroke;
             CardUbuntu.BorderThickness = new Thickness(1);
-            CardFedora.BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            CardFedora.BorderBrush = defaultStroke;
             CardFedora.BorderThickness = new Thickness(1);
-            CardFedoraNetinstall.BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
-            CardFedoraNetinstall.BorderThickness = new Thickness(1);
-            CardDebian.BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
-            CardDebian.BorderThickness = new Thickness(1);
-            CardOpenSuse.BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
-            CardOpenSuse.BorderThickness = new Thickness(1);
+            CardLinuxMint.BorderBrush = defaultStroke;
+            CardLinuxMint.BorderThickness = new Thickness(1);
+            CardZorin.BorderBrush = defaultStroke;
+            CardZorin.BorderThickness = new Thickness(1);
 
             // Highlight selected
             var accentBrush = GetBrushFromHex(distro.AccentColor);
             tappedBorder.BorderBrush = accentBrush;
             tappedBorder.BorderThickness = new Thickness(2);
 
+            // Handle Fedora Desktop Environment selection panel
+            if (distroId == "fedora")
+            {
+                PanelFedoraDeSelection.Visibility = Visibility.Visible;
+                _selectedDistro = distro.WithDesktopEnvironment(distro.SelectedDesktopEnvironment ?? "kde");
+                var deName = _selectedDistro.SelectedDesktopEnvironment == "gnome" ? "GNOME" : "KDE Plasma";
+                BtnInstallText.Text = $"Prepare and Stage Fedora 44 ({deName})";
+            }
+            else
+            {
+                PanelFedoraDeSelection.Visibility = Visibility.Collapsed;
+                BtnInstallText.Text = $"Prepare and Stage {distro.DisplayName}";
+            }
+
             // Update partition visualizer accent color
             BarLinuxSpace.Background = accentBrush;
             LegendLinuxColor.Background = accentBrush;
             LegendLinuxText.Text = $"{distro.DisplayName.Split(' ')[0]} Space ({distro.DefaultFilesystem})";
             TxtSliderValue.Foreground = accentBrush;
-
-            BtnInstallText.Text = $"Prepare and Stage {distro.DisplayName}";
         }
         catch (Exception ex)
         {
             Log($"SelectDistro_Tapped ERROR: {ex}");
+        }
+    }
+
+    private void SelectFedoraDE_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Border tappedBorder || tappedBorder.Tag is not string deId) return;
+
+            if (_selectedDistro.Id == "fedora")
+            {
+                _selectedDistro = _selectedDistro.WithDesktopEnvironment(deId);
+            }
+
+            var defaultStroke = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            CardDeKde.BorderBrush = defaultStroke;
+            CardDeKde.BorderThickness = new Thickness(1);
+            CardDeKde.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 34, 34));
+            BadgeDeKde.Text = "AVAILABLE";
+            BadgeDeKdeBorder.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 60, 60, 60));
+
+            CardDeGnome.BorderBrush = defaultStroke;
+            CardDeGnome.BorderThickness = new Thickness(1);
+            CardDeGnome.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 34, 34));
+            BadgeDeGnome.Text = "AVAILABLE";
+            BadgeDeGnomeBorder.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 60, 60, 60));
+
+            if (deId == "kde")
+            {
+                var plasmaBrush = GetBrushFromHex("#1D99F3");
+                CardDeKde.BorderBrush = plasmaBrush;
+                CardDeKde.BorderThickness = new Thickness(2);
+                CardDeKde.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 34, 40, 58));
+                BadgeDeKde.Text = "SELECTED";
+                BadgeDeKdeBorder.Background = plasmaBrush;
+                BtnInstallText.Text = "Prepare and Stage Fedora 44 (KDE Plasma)";
+            }
+            else
+            {
+                var gnomeBrush = GetBrushFromHex("#294172");
+                CardDeGnome.BorderBrush = gnomeBrush;
+                CardDeGnome.BorderThickness = new Thickness(2);
+                CardDeGnome.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 41, 65, 114));
+                BadgeDeGnome.Text = "SELECTED";
+                BadgeDeGnomeBorder.Background = gnomeBrush;
+                BtnInstallText.Text = "Prepare and Stage Fedora 44 (GNOME)";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"SelectFedoraDE_Tapped ERROR: {ex}");
         }
     }
 

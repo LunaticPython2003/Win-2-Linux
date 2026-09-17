@@ -256,8 +256,8 @@ public static class EspPopulationService
     {
         "ubuntu" => "autoinstall.yaml",
         "fedora" => "kickstart.ks",
-        "debian" => "preseed.cfg",
-        "opensuse" => "autoyast.xml",
+        "linuxmint" => "preseed.cfg",
+        "zorin" => "autoinstall.yaml",
         _ => "autoinstall.yaml"
     };
 }

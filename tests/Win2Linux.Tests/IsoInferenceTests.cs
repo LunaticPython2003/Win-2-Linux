@@ -28,9 +28,10 @@ public class IsoInferenceTests
     [Theory]
     [InlineData("ubuntu-26.04.1-live-server-amd64.iso", "ubuntu")]
     [InlineData("Fedora-Workstation-Live-44-1.7.x86_64.iso", "fedora")]
-    [InlineData("Fedora-Everything-netinst-x86_64-44-1.7.iso", "fedora-netinstall")]
-    [InlineData("debian-12.8.0-amd64-netinst.iso", "debian")]
-    [InlineData("openSUSE-Tumbleweed-NET-x86_64-Current.iso", "opensuse")]
+    [InlineData("Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso", "fedora")]
+    [InlineData("Fedora-KDE-Live-x86_64-44-1.7.iso", "fedora")]
+    [InlineData("linuxmint-22.1-cinnamon-64bit.iso", "linuxmint")]
+    [InlineData("Zorin-OS-17.2-Core-64-bit.iso", "zorin")]
     public void InferDistroFromIsoMatchesCorrectDistro(string fileName, string expectedDistroId)
     {
         var profile = IsoDownloadService.InferDistroFromIso(fileName);
