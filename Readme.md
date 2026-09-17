@@ -41,11 +41,8 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 ### Download Pre-built Binaries (Recommended)
 You can download the latest pre-compiled release from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
 
-- **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** (or smaller **[Win2Linux-v1.0.0-win-x64.7z](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**): Complete WinUI 3 desktop application with Fluent Design.
-  1. Download and extract the archive.
-  2. Right-click `Start-Win2Linux.cmd` (or `Win2Linux.UI.exe`) and select **Run as administrator**.
-  3. Select your preferred Linux distribution and target partition, then begin setup!
-- **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Standalone single-file CLI for command-line users.
+- **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Official Windows Setup installer for the WinUI 3 Fluent Design desktop application. Single-file executable — download, double-click to install, and run! Automatically configures Desktop and Start Menu shortcuts with Administrator elevation.
+- **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Standalone single-file CLI executable for terminal users. Zero dependencies required.
 
 ---
 
@@ -67,6 +64,7 @@ If you want to build and run Win-2-Linux directly from source code:
 #### Prerequisites
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or newer
 - Git for Windows
+- [Inno Setup 6](https://jrsoftware.org/isdl.php) (optional, for compiling the Windows installer)
 
 #### 1. Clone the Repository
 ```bash
@@ -89,13 +87,20 @@ To produce self-contained, standalone executables:
 
 ```powershell
 # Compile the WinUI 3 Fluent UI desktop app (Unpackaged, Self-Contained)
-dotnet publish src\Win2Linux.UI\Win2Linux.UI.csproj -c Release -r win-x64 --self-contained true -o dist\Win2Linux-win-x64
+dotnet publish src\Win2Linux.UI\Win2Linux.UI.csproj -c Release -r win-x64 --self-contained true -o dist\Win2Linux-v1.0.0-win-x64
 
 # Compile the standalone single-file CLI executable
 dotnet publish src\Win2Linux.Cli\Win2Linux.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist\cli
 ```
 
-#### 4. Run Automated Tests
+#### 4. Build the Single-File Windows Setup Installer (.exe)
+Package the compiled desktop application into a standalone setup wizard:
+```powershell
+iscc installer\Win2Linux-Setup.iss
+# Generates dist\Win2Linux-v1.0.0-Setup.exe
+```
+
+#### 5. Run Automated Tests
 Run the comprehensive test suite verifying Microsoft UEFI CA signatures, kickstart/preseed generation, and safety invariants:
 ```powershell
 dotnet test tests\Win2Linux.Tests\Win2Linux.Tests.csproj
