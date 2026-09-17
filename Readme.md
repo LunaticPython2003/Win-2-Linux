@@ -30,32 +30,75 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 - Windows-native installation; install Linux from Windows without a USB
 - Real physical Linux installation on your disk (not WSL, not a VM)
 - GRUB first boot support 
-- Ubuntu, Mint, or Fedora installation
-- Compact, single-file installer built with Rust and WinUI3
+- Ubuntu 26, Fedora 44 (KDE Plasma default or GNOME Workstation), Linux Mint 22.1, or Zorin OS 17.2
+- Built with modern .NET 8, C#, and WinUI 3 (Windows App SDK Fluent Design)
 - Protects the Windows system disk from destructive partition operations
 - Boots into an independent Linux installation after setup
 
 
-## Getting Started
+## Downloads & Releases
+
+### Download Pre-built Binaries (Recommended)
+You can download the latest pre-compiled release from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
+
+- **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Complete WinUI 3 desktop application with Fluent Design.
+  1. Download and extract the `.zip` archive.
+  2. Right-click `Start-Win2Linux.cmd` (or `Win2Linux.UI.exe`) and select **Run as administrator**.
+  3. Select your preferred Linux distribution and target partition, then begin setup!
+- **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Standalone single-file CLI for command-line users.
+
+---
+
+## Getting Started & Building from Source
 
 ### System Requirements
 
 The intended v1 environment is:
-- A modern Windows 10 or Windows 11 installation
-- UEFI firmware
+- A modern Windows 10 (version 1809+) or Windows 11 installation
+- UEFI firmware (Secure Boot supported)
 - Administrator privileges
 - An NTFS volume containing enough free space
-- WSL setup (optional for fallback)
+- WSL setup (optional fallback)
 
-#### 1. Clone the repository
+### Build from Source
+
+If you want to build and run Win-2-Linux directly from source code:
+
+#### Prerequisites
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or newer
+- Git for Windows
+
+#### 1. Clone the Repository
 ```bash
 git clone https://github.com/LunaticPython2003/Win-2-Linux.git
 cd Win-2-Linux
 ```
-#### 2. Run the installer
-Start the Windows-side launcher with Administrator privileges:
-```
+
+#### 2. Run Directly in Development
+Launch the WinUI 3 desktop app directly with elevated permissions:
+```cmd
 Start-Win2Linux.cmd
+```
+*Alternatively, run from an elevated PowerShell terminal:*
+```powershell
+dotnet run --project src\Win2Linux.UI
+```
+
+#### 3. Compile Standalone Release Executables
+To produce self-contained, standalone executables:
+
+```powershell
+# Compile the WinUI 3 Fluent UI desktop app (Unpackaged, Self-Contained)
+dotnet publish src\Win2Linux.UI\Win2Linux.UI.csproj -c Release -r win-x64 --self-contained true -o dist\Win2Linux-win-x64
+
+# Compile the standalone single-file CLI executable
+dotnet publish src\Win2Linux.Cli\Win2Linux.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist\cli
+```
+
+#### 4. Run Automated Tests
+Run the comprehensive test suite verifying Microsoft UEFI CA signatures, kickstart/preseed generation, and safety invariants:
+```powershell
+dotnet test tests\Win2Linux.Tests\Win2Linux.Tests.csproj
 ```
 
 ### Important Warnings
