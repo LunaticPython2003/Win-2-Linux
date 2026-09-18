@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using Win2Linux.Core.Boot;
 using Win2Linux.Core.Distros;
 using Win2Linux.Core.Models;
 using Win2Linux.Core.Orchestrator;
@@ -92,6 +93,9 @@ public sealed partial class MainPage : Page
                 DiskShrinkSlider.Value = Math.Min(450, maxShrinkGb);
 
                 TxtMaxShrink.Text = $"Max: {maxShrinkGb} GB (Preserves 20 GB Windows buffer)";
+
+                var existingEsp = _discoveryReport.ExistingEsps.FirstOrDefault(e => e.DiskNumber == _activeTarget.DiskNumber && !e.IsOnSystemDisk);
+                BtnCleanEsp.Visibility = existingEsp != null ? Visibility.Visible : Visibility.Collapsed;
 
                 UpdateDiskProportions(DiskShrinkSlider.Value);
             }
@@ -456,6 +460,55 @@ public sealed partial class MainPage : Page
         };
 
         if (pill != null) pill.Background = activeBrush;
+    }
+
+    private async void CleanEsp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeTarget == null || _discoveryReport == null || this.XamlRoot == null) return;
+
+        var confirmDialog = new ContentDialog
+        {
+            Title = "Delete ESP Partition & Restore Drive?",
+            Content = $"This will safely delete the staged EFI System Partition from Disk {_activeTarget.DiskNumber} and extend volume {_activeTarget.DriveLetter} to reclaim all disk space.\n\nAre you sure you want to proceed?",
+            PrimaryButtonText = "Delete ESP",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot
+        };
+
+        var result = await confirmDialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            try
+            {
+                BtnCleanEsp.IsEnabled = false;
+                Log($"Deleting ESP partition on Disk {_activeTarget.DiskNumber} and extending {_activeTarget.DriveLetter}...");
+
+                var removed = await EspCreationService.DeleteEspAndExtendVolumeAsync(
+                    _activeTarget.DiskNumber,
+                    _discoveryReport.ProtectedSystemDisk.DiskNumber,
+                    _activeTarget.DriveLetter);
+
+                if (removed)
+                {
+                    Log("ESP partition deleted and volume extended successfully.");
+                }
+                else
+                {
+                    Log("No ESP partition found to delete on target disk.");
+                }
+
+                await LoadDiscoveryDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to delete ESP partition: {ex.Message}");
+            }
+            finally
+            {
+                BtnCleanEsp.IsEnabled = true;
+            }
+        }
     }
 
     private static void Log(string message)

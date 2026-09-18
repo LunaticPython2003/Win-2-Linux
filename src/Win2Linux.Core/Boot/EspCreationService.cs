@@ -53,35 +53,34 @@ public static class EspCreationService
         // Check if an ESP partition already exists on the target secondary disk (e.g. from previous run)
         var (existingPartNo, _, _) = await FindEspPartitionAsync(plan.Target.DiskNumber, ct);
 
-        string script;
         if (existingPartNo > 0)
         {
-            progress.Report(new ProgressUpdate(8, 10, "Preparing EFI Boot Partition", 68,
+            progress.Report(new ProgressUpdate(8, 10, "Deleting Previous ESP Partition", 67,
                 $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
-                $"Existing ESP partition {existingPartNo} found on Disk {plan.Target.DiskNumber}. Reformatting as LINUXEFI..."));
+                $"Existing ESP partition {existingPartNo} found on Disk {plan.Target.DiskNumber}. Deleting previous ESP to ensure clean deployment..."));
 
-            script = $"""
+            var deleteScript = $"""
                 select disk {plan.Target.DiskNumber}
                 select partition {existingPartNo}
-                format fs=fat32 quick label="LINUXEFI"
-                assign letter={tempLetter}
+                delete partition override
                 exit
                 """;
-        }
-        else
-        {
-            progress.Report(new ProgressUpdate(8, 10, "Creating EFI Boot Partition", 68,
-                $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
-                $"Creating 4096 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
 
-            script = $"""
-                select disk {plan.Target.DiskNumber}
-                create partition efi size=4096
-                format fs=fat32 quick label="LINUXEFI"
-                assign letter={tempLetter}
-                exit
-                """;
+            await RunDiskpartScriptAsync(deleteScript, ct);
+            await Task.Delay(1000, ct);
         }
+
+        progress.Report(new ProgressUpdate(8, 10, "Creating EFI Boot Partition", 68,
+            $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
+            $"Creating 4096 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
+
+        var script = $"""
+            select disk {plan.Target.DiskNumber}
+            create partition efi size=4096
+            format fs=fat32 quick label="LINUXEFI"
+            assign letter={tempLetter}
+            exit
+            """;
 
         progress.Report(new ProgressUpdate(8, 10, "Formatting EFI Boot Partition", 70,
             $"[ESP Creation] Running diskpart on Disk {plan.Target.DiskNumber} (temp letter: {tempLetter}:)..."));
@@ -116,6 +115,55 @@ public static class EspCreationService
             DriveLetter: tempLetter,
             SizeBytes: partSize
         );
+    }
+
+    /// <summary>
+    /// Deletes the EFI System Partition from the secondary target disk and extends the adjacent Windows volume to reclaim space.
+    /// Hard assertion: strictly prevents modifying the protected Windows system disk.
+    /// </summary>
+    public static async Task<bool> DeleteEspAndExtendVolumeAsync(
+        int targetDiskNumber,
+        int protectedDiskNumber,
+        string? driveLetter = null,
+        CancellationToken ct = default)
+    {
+        if (targetDiskNumber == protectedDiskNumber)
+        {
+            throw new InvalidOperationException(
+                $"CRITICAL SAFETY ABORT: Refusing to delete partitions on protected Windows system disk {protectedDiskNumber}.");
+        }
+
+        var (existingPartNo, _, _) = await FindEspPartitionAsync(targetDiskNumber, ct);
+        if (existingPartNo <= 0)
+        {
+            return false;
+        }
+
+        string script;
+        if (!string.IsNullOrWhiteSpace(driveLetter))
+        {
+            var cleanLetter = driveLetter.TrimEnd('\\', ':');
+            script = $"""
+                select disk {targetDiskNumber}
+                select partition {existingPartNo}
+                delete partition override
+                select volume {cleanLetter}
+                extend
+                exit
+                """;
+        }
+        else
+        {
+            script = $"""
+                select disk {targetDiskNumber}
+                select partition {existingPartNo}
+                delete partition override
+                exit
+                """;
+        }
+
+        await RunDiskpartScriptAsync(script, ct);
+        return true;
     }
 
     /// <summary>

@@ -275,9 +275,17 @@
                                 <TextBlock x:Name="TxtTargetDiskSub" Text="Target Volume: D: [Data] (NTFS) • Total: 953 GB • Free Space: 752 GB" 
                                            FontSize="12" Foreground="#AAAAAA" />
                             </StackPanel>
-                            <Border Background="#107C41" HorizontalAlignment="Right" VerticalAlignment="Center" CornerRadius="4" Padding="8,3">
-                                <TextBlock Text="ELIGIBLE TARGET" Foreground="White" FontWeight="SemiBold" FontSize="11" />
-                            </Border>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+                                <Button x:Name="BtnCleanEsp" Click="CleanEsp_Click" Padding="10,4" Background="#3A2020" BorderBrush="#D83B01" BorderThickness="1" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="#FF6B6B" />
+                                        <TextBlock Text="Delete ESP &amp; Extend D:" FontSize="11" Foreground="#FF6B6B" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Button>
+                                <Border Background="#107C41" CornerRadius="4" Padding="8,3">
+                                    <TextBlock Text="ELIGIBLE TARGET" Foreground="White" FontWeight="SemiBold" FontSize="11" />
+                                </Border>
+                            </StackPanel>
                         </Grid>
 
                         <!-- Visual Disk Segment Bar -->
