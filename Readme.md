@@ -39,10 +39,21 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 ## Downloads & Releases
 
 ### Download Pre-built Binaries (Recommended)
-You can download the latest pre-compiled release from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
+You can download the latest pre-compiled releases directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
 
-- **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Official Windows Setup installer for the WinUI 3 Fluent Design desktop application. Single-file executable — download, double-click to install, and run! Automatically configures Desktop and Start Menu shortcuts with Administrator elevation.
-- **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)**: Standalone single-file CLI executable for terminal users. Zero dependencies required.
+| Package | Format | Description |
+| :--- | :--- | :--- |
+| **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Windows Installer (`.exe`) | **Recommended for most users.** Standalone setup wizard that installs the WinUI 3 Fluent application, creates Start Menu & Desktop shortcuts, and configures administrator elevation. |
+| **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Portable Archive (`.zip`) | Portable package. Download, extract to any directory, and right-click `Start-Win2Linux.cmd` -> **Run as administrator**. No installation required. |
+| **[Win2Linux-v1.0.0-win-x64.7z](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Portable Archive (`.7z`) | Ultra-compressed portable package (~30% smaller download). Extract with [7-Zip](https://www.7-zip.org/) and run `Start-Win2Linux.cmd` as administrator. |
+| **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Standalone CLI (`.exe`) | Standalone single-file command-line utility for advanced terminal users and automated deployment scripts. Zero dependencies. |
+
+#### Quick Start from Release:
+1. Download **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** and run the installer, or extract the portable archive.
+2. Launch **Win-2-Linux** (accept the Windows UAC Administrator prompt).
+3. Select your desired Linux distribution (Fedora, Ubuntu, Linux Mint, or Zorin OS) and choose how much disk space to allocate from your secondary drive (`D:`).
+4. Click **Stage Dual-Boot Environment**. Win-2-Linux safely shrinks the volume, provisions a dedicated EFI system partition, downloads and verifies the official Microsoft-signed bootloader and live root files, and configures your UEFI boot menu.
+5. Reboot into the newly registered UEFI entry to complete the Linux setup!
 
 ---
 

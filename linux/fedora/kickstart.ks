@@ -22,7 +22,7 @@ rootpw --lock
 user --name=user --plaintext --password=changeme --groups=wheel
 
 # Bootloader configuration (Signed Secure Boot shim)
-bootloader --location=mbr --boot-drive=auto
+bootloader --location=none
 
 # Automated partitioning into unallocated free space only
 # NEVER clear existing partitions on secondary or system disks

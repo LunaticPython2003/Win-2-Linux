@@ -746,14 +746,11 @@ public static class InstallationOrchestrator
             keyboard us
             timezone UTC
 
-            # Strictly preserve protected Windows system disk (Disk {{plan.ProtectedDisk.DiskNumber}})
-            ignoredisk --drives=disk/by-id/wwn-{{plan.ProtectedDisk.DiskSerial}}
-
-            # Install to secondary disk, preserve existing D: partition
-            bootloader --location=mbr --boot-drive=disk/by-id/wwn-{{plan.Target.DiskSerial}}
-            clearpart --none --initlabel
-            part /boot/efi --fstype=efi --size=1 --ondisk=disk/by-id/wwn-{{plan.Target.DiskSerial}} --noformat --onpart=1
-            part / --fstype={{plan.SelectedDistro.DefaultFilesystem}} --grow --ondisk=disk/by-id/wwn-{{plan.Target.DiskSerial}}
+            # Automated partitioning into unallocated free space only
+            # NEVER clear or modify existing Windows partitions
+            bootloader --location=none
+            clearpart --none
+            autopart --type=btrfs --nohome
 
             %packages
             {{dePackageGroup}}

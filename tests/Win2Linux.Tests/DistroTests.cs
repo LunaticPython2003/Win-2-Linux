@@ -64,4 +64,23 @@ public class DistroTests
         Assert.Equal("gnome", gnomeFedora.SelectedDesktopEnvironment);
         Assert.Contains("Workstation", gnomeFedora.IsoDownloadUrl);
     }
+
+    [Fact]
+    public void AllDistrosConfigureRamCachingForUnallocatedSpaceVisibility()
+    {
+        var distros = DistroRegistry.SupportedDistributions;
+        foreach (var d in distros)
+        {
+            if (d.Id == "fedora")
+            {
+                Assert.Contains("rd.live.ram=1", d.AutoinstallKernelArgs);
+                Assert.Contains("rd.live.ram=1", d.GetInteractiveKernelArgs());
+            }
+            else
+            {
+                Assert.Contains("toram", d.AutoinstallKernelArgs);
+                Assert.Contains("toram", d.GetInteractiveKernelArgs());
+            }
+        }
+    }
 }

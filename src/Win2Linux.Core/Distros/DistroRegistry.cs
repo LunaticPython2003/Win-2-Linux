@@ -31,6 +31,7 @@ public record DistroProfile(
     string IsoShimPath,
     string IsoGrubEfiPath,
     string AutoinstallKernelArgs,
+    string? InteractiveKernelArgs = null,
     // Ordered mirror fallbacks tried before IsoDownloadUrl (fastest/closest first).
     // If empty, IsoDownloadUrl is used directly.
     string[]? IsoMirrorUrls = null,
@@ -39,6 +40,8 @@ public record DistroProfile(
     string? SelectedDesktopEnvironment = null
 )
 {
+    public string GetInteractiveKernelArgs() => InteractiveKernelArgs ?? AutoinstallKernelArgs;
+
     public DistroProfile WithDesktopEnvironment(string deId)
     {
         if (DesktopEnvironments == null || DesktopEnvironments.Count == 0)
@@ -81,7 +84,8 @@ public static class DistroRegistry
             IsoInitrdPath: "casper/initrd",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/ubuntu/grubx64.efi",
-            AutoinstallKernelArgs: "autoinstall quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/"
+            AutoinstallKernelArgs: "autoinstall toram quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
+            InteractiveKernelArgs: "toram quiet splash ---"
         ),
         new(
             Id: "fedora",
@@ -102,7 +106,8 @@ public static class DistroRegistry
             IsoInitrdPath: "images/pxeboot/initrd.img",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/fedora/grubx64.efi",
-            AutoinstallKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
+            AutoinstallKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image rd.live.ram=1 inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
+            InteractiveKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image rd.live.ram=1 quiet rhgb",
             IsoMirrorUrls: [
                 "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
                 "https://mirrors.ustc.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
@@ -157,7 +162,8 @@ public static class DistroRegistry
             IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
-            AutoinstallKernelArgs: "boot=casper automatic-ubiquity quiet splash ---",
+            AutoinstallKernelArgs: "boot=casper toram automatic-ubiquity quiet splash ---",
+            InteractiveKernelArgs: "boot=casper toram quiet splash ---",
             IsoMirrorUrls: [
                 "https://mirrors.kernel.org/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso",
                 "https://mirrors.layeronline.com/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso"
@@ -182,7 +188,8 @@ public static class DistroRegistry
             IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
-            AutoinstallKernelArgs: "boot=casper quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
+            AutoinstallKernelArgs: "boot=casper toram quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
+            InteractiveKernelArgs: "boot=casper toram quiet splash ---",
             IsoMirrorUrls: [
                 "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso"
             ]

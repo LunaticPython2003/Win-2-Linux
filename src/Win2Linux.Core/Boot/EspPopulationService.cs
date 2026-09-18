@@ -235,8 +235,14 @@ public static class EspPopulationService
             search --no-floppy --file /win2linux/boot/vmlinuz --set=root
 
             menuentry "Install {{distro.DisplayName}} (Automated Dual-Boot)" --class linux {
-                echo "Win2Linux: Loading {{distro.DisplayName}} installer kernel..."
+                echo "Win2Linux: Loading {{distro.DisplayName}} installer kernel (Automated)..."
                 linux  /win2linux/boot/vmlinuz {{distro.AutoinstallKernelArgs}}
+                initrd /win2linux/boot/initrd
+            }
+
+            menuentry "Try or Install {{distro.DisplayName}} (Interactive Live Desktop)" --class linux {
+                echo "Win2Linux: Loading {{distro.DisplayName}} Live Desktop..."
+                linux  /win2linux/boot/vmlinuz {{distro.GetInteractiveKernelArgs()}}
                 initrd /win2linux/boot/initrd
             }
 
