@@ -40,17 +40,15 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 ## Downloads & Releases
 
 ### Download Pre-built Binaries (Recommended)
-You can download the latest pre-compiled releases directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases):
+You can download the latest pre-compiled releases directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases): <sup>[1]</sup>
 
 | Package | Format | Description |
 | :--- | :--- | :--- |
-| **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Windows Installer (`.exe`) | **Recommended for most users.** Standalone setup wizard that installs the WinUI 3 Fluent application, creates Start Menu & Desktop shortcuts, and configures administrator elevation. |
-| **[Win2Linux-v1.0.0-win-x64.zip](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Portable Archive (`.zip`) | Portable package. Download, extract to any directory, and right-click `Start-Win2Linux.cmd` -> **Run as administrator**. No installation required. |
-| **[Win2Linux-v1.0.0-win-x64.7z](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Portable Archive (`.7z`) | Ultra-compressed portable package (~30% smaller download). Extract with [7-Zip](https://www.7-zip.org/) and run `Start-Win2Linux.cmd` as administrator. |
+| **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Windows Installer (`.exe`) | **Recommended for most users.** Standalone setup wizard that installs the WinUI 3 Fluent application, creates Start Menu & Desktop shortcuts, and configures administrator elevation. Completely self-contained with zero external dependencies required. |
 | **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Standalone CLI (`.exe`) | Standalone single-file command-line utility for advanced terminal users and automated deployment scripts. Zero dependencies. |
 
 #### Quick Start from Release:
-1. Download **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** and run the installer, or extract the portable archive.
+1. Download **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** and run the installer.
 2. Launch **Win-2-Linux** (accept the Windows UAC Administrator prompt).
 3. Select your desired Linux distribution (Fedora, Ubuntu, Linux Mint, or Zorin OS) and choose how much disk space to allocate from your secondary drive (`D:`).
 4. Click **Stage Dual-Boot Environment**. Win-2-Linux safely shrinks the volume, provisions a dedicated EFI system partition, downloads and verifies the official Microsoft-signed bootloader and live root files, and configures your UEFI boot menu.
@@ -148,7 +146,7 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [ ] Add support for more bootloaders
 - [ ] Add support for more UEFI boot entries
 - [ ] Add support for automatically signing unsupported distros for Secure Boot
-- [x] Make it possible to completely bypass the need for booting into installer (Initial support for Fedora )
+- [x] Make it possible to completely bypass the need for booting into installer (Initial support for Fedora <sup>[2]</sup>)
 - [ ] Bring your own ISO support
 
 ## Screenshots
@@ -156,4 +154,9 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 <b> Installation screen <br> <br>
 
 ![Distro selection](assets/image-1.png) <br>
-<b> Distro selection <br>
+<b> Distro selection </b> <br>
+
+
+## References
+[1] Builds for the latest commits have not been released yet. Not because the changes are thermonuclear in nature, but because I wanted to rigorously test everything before a regular release. If you want to test the latest changes yourself, simply clone the repository and run `Start-Win2Linux.cmd` or `dotnet run`. <br>
+[2] Although the support for Fedora has been tested, it still carries an additional baggage of a potential brick of subsystem. The feature will be refined in future releases. 
