@@ -33,7 +33,8 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 - Ubuntu 26, Fedora 44 (KDE Plasma default or GNOME Workstation), Linux Mint 22.1, or Zorin OS 17.2
 - Built with modern .NET 8, C#, and WinUI 3 (Windows App SDK Fluent Design)
 - Protects the Windows system disk from destructive partition operations
-- Boots into an independent Linux installation after setup
+- Boots into a graphical setup window to review all the setups
+- Ability to select from multiple kernels. 
 
 
 ## Downloads & Releases
@@ -147,7 +148,7 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [ ] Add support for more bootloaders
 - [ ] Add support for more UEFI boot entries
 - [ ] Add support for automatically signing unsupported distros for Secure Boot
-- [ ] Make it possible to completely bypass the need for booting into installer (that is, if its even possible to do it in a safe manner)
+- [x] Make it possible to completely bypass the need for booting into installer (Initial support for Fedora )
 - [ ] Bring your own ISO support
 
 ## Screenshots

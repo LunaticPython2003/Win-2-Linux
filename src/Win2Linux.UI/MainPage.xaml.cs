@@ -35,6 +35,7 @@ public sealed partial class MainPage : Page
     private async void MainPage_Loaded(object sender, RoutedEventArgs e)
     {
         Log("MainPage_Loaded fired");
+        InitializeSetupDefaults();
         await LoadDiscoveryDataAsync();
     }
 
@@ -153,6 +154,11 @@ public sealed partial class MainPage : Page
             LegendLinuxColor.Background = accentBrush;
             LegendLinuxText.Text = $"{distro.DisplayName.Split(' ')[0]} Space ({distro.DefaultFilesystem})";
             TxtSliderValue.Foreground = accentBrush;
+
+            if (TxtHostname != null && (TxtHostname.Text.EndsWith("-dualboot") || TxtHostname.Text.EndsWith("-pc")))
+            {
+                TxtHostname.Text = $"{distro.Id}-dualboot";
+            }
         }
         catch (Exception ex)
         {
@@ -304,12 +310,15 @@ public sealed partial class MainPage : Page
         TxtDownloadSize.Text = "0 MB / 0 MB";
         ResetStepPills();
 
+        var setupConfig = BuildSetupConfigurationFromUi();
+
         var plan = new InstallationPlan(
             _selectedDistro,
             _activeTarget,
             _discoveryReport.ProtectedSystemDisk,
             reservedBytes,
-            linuxSizeGb
+            linuxSizeGb,
+            setupConfig
         );
 
         var progressTracker = new Progress<ProgressUpdate>(update =>
@@ -509,6 +518,97 @@ public sealed partial class MainPage : Page
                 BtnCleanEsp.IsEnabled = true;
             }
         }
+    }
+
+    private void InitializeSetupDefaults()
+    {
+        try
+        {
+            var defaults = LinuxSetupConfiguration.CreateDefault(_selectedDistro?.Id ?? "fedora");
+            TxtUsername.Text = defaults.Username;
+            TxtRealName.Text = defaults.RealName;
+            TxtPassword.Password = "changeme";
+            TxtHostname.Text = defaults.Hostname;
+
+            // Attempt to auto-select detected timezone
+            foreach (ComboBoxItem item in CmbTimezone.Items)
+            {
+                if (item.Tag?.ToString() == defaults.Timezone || item.Content?.ToString()?.Contains(defaults.Timezone) == true)
+                {
+                    CmbTimezone.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // Hardware detection display: GPU and Legion
+            if (!string.IsNullOrWhiteSpace(defaults.DetectedGpu))
+            {
+                BadgeGpuDetected.Visibility = Visibility.Visible;
+                TxtGpuDetected.Text = $"{defaults.DetectedGpu} Detected";
+                ChkInstallNvidia.IsChecked = defaults.InstallNvidiaDrivers;
+            }
+
+            if (defaults.DetectedHardwareModel != null &&
+                (defaults.DetectedHardwareModel.Contains("Legion", StringComparison.OrdinalIgnoreCase) ||
+                 defaults.DetectedHardwareModel.Contains("83F5", StringComparison.OrdinalIgnoreCase) ||
+                 defaults.DetectedHardwareModel.Contains("Lenovo", StringComparison.OrdinalIgnoreCase)))
+            {
+                BadgeLegionDetected.Visibility = Visibility.Visible;
+                TxtLegionDetected.Text = $"{defaults.DetectedHardwareModel} Detected — Linux 7.3 Kernel Recommended for Speaker Audio Fix";
+            }
+
+            // Select kernel
+            foreach (ComboBoxItem item in CmbKernel.Items)
+            {
+                if (item.Tag?.ToString() == defaults.KernelSelection)
+                {
+                    CmbKernel.SelectedItem = item;
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"InitializeSetupDefaults failed: {ex.Message}");
+        }
+    }
+
+    private LinuxSetupConfiguration BuildSetupConfigurationFromUi()
+    {
+        var username = TxtUsername.Text.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(username)) username = "user";
+
+        var realName = string.IsNullOrWhiteSpace(TxtRealName.Text) ? "Linux User" : TxtRealName.Text.Trim();
+        var password = string.IsNullOrWhiteSpace(TxtPassword.Password) ? "changeme" : TxtPassword.Password;
+        var hostname = string.IsNullOrWhiteSpace(TxtHostname.Text) ? $"{_selectedDistro?.Id ?? "linux"}-dualboot" : TxtHostname.Text.Trim();
+
+        var locale = (CmbLocale.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en_US.UTF-8";
+        var keyboard = (CmbKeyboard.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "us";
+        var timezone = (CmbTimezone.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "UTC";
+
+        var interactiveReview = ChkInteractiveReview.IsChecked ?? true;
+        var safeGraphics = ChkSafeGraphics.IsChecked ?? false;
+        var customKernelArgs = TxtKernelArgs.Text.Trim();
+
+        var installNvidia = ChkInstallNvidia.IsChecked ?? false;
+        var installCodecs = ChkInstallCodecs.IsChecked ?? true;
+        var kernelSelection = (CmbKernel.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "linux-default";
+
+        return new LinuxSetupConfiguration(
+            Locale: locale,
+            KeyboardLayout: keyboard,
+            Timezone: timezone,
+            Username: username,
+            RealName: realName,
+            Password: password,
+            Hostname: hostname,
+            CustomKernelArgs: customKernelArgs,
+            SafeGraphics: safeGraphics,
+            InteractiveReview: interactiveReview,
+            InstallNvidiaDrivers: installNvidia,
+            InstallProprietaryCodecs: installCodecs,
+            KernelSelection: kernelSelection
+        );
     }
 
     private static void Log(string message)

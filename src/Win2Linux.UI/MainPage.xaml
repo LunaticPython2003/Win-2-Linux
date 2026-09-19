@@ -359,10 +359,175 @@
                 </Border>
             </StackPanel>
 
+            <!-- Card 3: Linux Configuration & Installation Setup -->
+            <Border Background="#252525" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="16">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE713;" FontSize="16" Foreground="#0078D4" />
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Linux Configuration &amp; Setup Options" FontWeight="SemiBold" FontSize="15" />
+                                <TextBlock Text="Configure user accounts, localization, and installer review mode before booting." FontSize="12" Foreground="#AAAAAA" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnSpacing="20" RowSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left Column: User Account -->
+                        <StackPanel Grid.Column="0" Spacing="10">
+                            <TextBlock Text="User Account &amp; System" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="TxtUsername" Grid.Column="0" Header="Username" PlaceholderText="user" Text="user" />
+                                <TextBox x:Name="TxtRealName" Grid.Column="1" Header="Full Name" PlaceholderText="Linux User" Text="Linux User" />
+                            </Grid>
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <PasswordBox x:Name="TxtPassword" Grid.Column="0" Header="Password" PlaceholderText="changeme" Password="changeme" PasswordRevealMode="Peek" />
+                                <TextBox x:Name="TxtHostname" Grid.Column="1" Header="Computer Name" PlaceholderText="fedora-dualboot" Text="fedora-dualboot" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Right Column: Localization -->
+                        <StackPanel Grid.Column="1" Spacing="10">
+                            <TextBlock Text="Localization &amp; Region" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            <ComboBox x:Name="CmbLocale" Header="Language / Locale" HorizontalAlignment="Stretch" SelectedIndex="0">
+                                <ComboBoxItem Content="English (United States) — en_US.UTF-8" Tag="en_US.UTF-8" />
+                                <ComboBoxItem Content="English (United Kingdom) — en_GB.UTF-8" Tag="en_GB.UTF-8" />
+                                <ComboBoxItem Content="English (India) — en_IN.UTF-8" Tag="en_IN.UTF-8" />
+                                <ComboBoxItem Content="German (Deutsch) — de_DE.UTF-8" Tag="de_DE.UTF-8" />
+                                <ComboBoxItem Content="French (Français) — fr_FR.UTF-8" Tag="fr_FR.UTF-8" />
+                                <ComboBoxItem Content="Spanish (Español) — es_ES.UTF-8" Tag="es_ES.UTF-8" />
+                                <ComboBoxItem Content="Italian (Italiano) — it_IT.UTF-8" Tag="it_IT.UTF-8" />
+                                <ComboBoxItem Content="Japanese (日本語) — ja_JP.UTF-8" Tag="ja_JP.UTF-8" />
+                            </ComboBox>
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="CmbKeyboard" Grid.Column="0" Header="Keyboard Layout" HorizontalAlignment="Stretch" SelectedIndex="0">
+                                    <ComboBoxItem Content="US QWERTY (us)" Tag="us" />
+                                    <ComboBoxItem Content="UK QWERTY (gb)" Tag="gb" />
+                                    <ComboBoxItem Content="German QWERTZ (de)" Tag="de" />
+                                    <ComboBoxItem Content="French AZERTY (fr)" Tag="fr" />
+                                    <ComboBoxItem Content="Spanish (es)" Tag="es" />
+                                </ComboBox>
+                                <ComboBox x:Name="CmbTimezone" Grid.Column="1" Header="Timezone" HorizontalAlignment="Stretch" SelectedIndex="0">
+                                    <ComboBoxItem Content="UTC (Coordinated Universal Time)" Tag="UTC" />
+                                    <ComboBoxItem Content="Asia/Kolkata (IST)" Tag="Asia/Kolkata" />
+                                    <ComboBoxItem Content="America/New_York (EST/EDT)" Tag="America/New_York" />
+                                    <ComboBoxItem Content="America/Los_Angeles (PST/PDT)" Tag="America/Los_Angeles" />
+                                    <ComboBoxItem Content="America/Chicago (CST/CDT)" Tag="America/Chicago" />
+                                    <ComboBoxItem Content="Europe/London (GMT/BST)" Tag="Europe/London" />
+                                    <ComboBoxItem Content="Europe/Berlin (CET/CEST)" Tag="Europe/Berlin" />
+                                    <ComboBoxItem Content="Asia/Tokyo (JST)" Tag="Asia/Tokyo" />
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="#333333" Margin="0,4" />
+
+                    <!-- Proprietary Drivers & Hardware Acceleration -->
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE74E;" FontSize="14" Foreground="#0078D4" />
+                                <TextBlock Text="Proprietary Drivers &amp; Hardware Acceleration" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- GPU Detection Banner -->
+                        <Border x:Name="BadgeGpuDetected" Background="#1B3828" BorderBrush="#107C41" BorderThickness="1" CornerRadius="4" Padding="10,6" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE730;" FontSize="14" Foreground="#2ECC71" />
+                                <TextBlock x:Name="TxtGpuDetected" Text="NVIDIA GPU Detected" FontSize="12" Foreground="#2ECC71" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Spacing="4">
+                            <CheckBox x:Name="ChkInstallNvidia" Content="Install Official NVIDIA Proprietary Drivers (akmod-nvidia / DKMS)" />
+                            <TextBlock Text="Configures RPM Fusion / restricted repositories and installs official proprietary NVIDIA drivers for full 3D acceleration and CUDA." 
+                                       FontSize="11" Foreground="#888888" Margin="28,-4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <CheckBox x:Name="ChkInstallCodecs" IsChecked="True" Content="Install Proprietary Multimedia Codecs (MP3, AAC, H.264, HEVC)" />
+                            <TextBlock Text="Includes media libraries and hardware-accelerated codecs for playing modern video and audio formats." 
+                                       FontSize="11" Foreground="#888888" Margin="28,-4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="#333333" Margin="0,4" />
+
+                    <!-- Advanced: Kernel Selection -->
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE770;" FontSize="14" Foreground="#0078D4" />
+                                <TextBlock Text="Advanced: Kernel Selection &amp; Audio Fixes" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Legion Detection Banner -->
+                        <Border x:Name="BadgeLegionDetected" Background="#1A2D3F" BorderBrush="#0078D4" BorderThickness="1" CornerRadius="4" Padding="10,6" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="#85C1E9" />
+                                <TextBlock x:Name="TxtLegionDetected" Text="Lenovo Legion Laptop Detected — Linux 7.3 Kernel Recommended for Speaker Audio Fix" FontSize="12" Foreground="#85C1E9" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Border>
+
+                        <ComboBox x:Name="CmbKernel" Header="Target Linux Kernel" HorizontalAlignment="Stretch" SelectedIndex="0">
+                            <ComboBoxItem Content="Distribution Default Kernel (Official ISO Standard Kernel)" Tag="linux-default" />
+                            <ComboBoxItem Content="Linux 7.3 Mainline (Lenovo Legion Speaker Audio Bug Fix &amp; Blackwell GPU)" Tag="linux-7.3-legion" />
+                            <ComboBoxItem Content="Linux Zen / Liquorix (Low-Latency Gaming &amp; Responsive Desktop)" Tag="linux-zen" />
+                            <ComboBoxItem Content="Linux LTS (Long-Term Support — Maximum Stability)" Tag="linux-lts" />
+                        </ComboBox>
+
+                        <TextBlock Text="ℹ️ Selecting Linux 7.3 applies the Cirrus Logic CS35L41 dual-amplifier ACPI routing fixes for Lenovo Legion laptop speakers, resolving the silent speaker bug and enabling full quad-speaker sound." 
+                                   FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Divider -->
+                    <Border Height="1" Background="#333333" Margin="0,4" />
+
+                    <!-- Installer Display & Behavior -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Installer Review &amp; Display Mode" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                        <CheckBox x:Name="ChkInteractiveReview" IsChecked="True" Content="Review configuration &amp; partition layout in Linux before installing (Recommended)" />
+                        <TextBlock Text="When you boot into Linux, the installer presents the complete pre-populated configuration and highlights the dedicated partition. Installation starts only when you click 'Proceed'." 
+                                   FontSize="11" Foreground="#888888" Margin="28,-4,0,0" TextWrapping="Wrap" />
+
+                        <Grid Margin="0,6,0,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="ChkSafeGraphics" Grid.Column="0" Content="Safe Graphics Mode (nomodeset)" />
+                            <TextBox x:Name="TxtKernelArgs" Grid.Column="1" PlaceholderText="Custom kernel arguments (optional, e.g. quiet)" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Safety & Execution Footer -->
             <StackPanel Spacing="16" Margin="0,8,0,0">
                 <Border Background="#1A2D3F" BorderBrush="#0078D4" BorderThickness="1" CornerRadius="6" Padding="14,10">
-                    <TextBlock Text="Volume D: will be shrunk safely using Windows Storage Management. The newly freed space is left unallocated for the Linux installer environment to partition." 
+                    <TextBlock Text="Volume D: will be shrunk safely using Windows Storage Management. A dedicated Linux partition is created in the freed space and populated with your custom configuration." 
                                Foreground="#85C1E9" FontSize="12" />
                 </Border>
 

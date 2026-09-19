@@ -113,4 +113,129 @@ public class OrchestratorTests
         Assert.Contains("zorin-dualboot", zorinConfig);
         Assert.Contains("autoinstall", zorinConfig);
     }
+
+    [Fact]
+    public void FedoraKickstartRespectsCustomSetupConfigurationAndInteractiveReview()
+    {
+        var fedora = DistroRegistry.SupportedDistributions.First(d => d.Id == "fedora");
+        var customSetup = new LinuxSetupConfiguration(
+            Locale: "de_DE.UTF-8",
+            KeyboardLayout: "de",
+            Timezone: "Europe/Berlin",
+            Username: "developer",
+            RealName: "Jane Developer",
+            Password: "SecurePassword123!",
+            Hostname: "fedora-workstation",
+            InteractiveReview: true
+        );
+
+        var plan = new InstallationPlan(
+            fedora,
+            _targetSecondaryDisk,
+            _protectedDisk,
+            53687091200,
+            50,
+            customSetup
+        );
+
+        var kickstart = InstallationOrchestrator.GenerateUnattendedConfig(plan);
+
+        Assert.Contains("graphical", kickstart);
+        Assert.DoesNotContain("reboot", kickstart);
+        Assert.Contains("lang de_DE.UTF-8", kickstart);
+        Assert.Contains("keyboard de", kickstart);
+        Assert.Contains("timezone Europe/Berlin", kickstart);
+        Assert.Contains("user --name=developer", kickstart);
+        Assert.Contains("--password=SecurePassword123!", kickstart);
+        Assert.Contains("hostname=fedora-workstation", kickstart);
+    }
+
+    [Fact]
+    public void FedoraKickstartEmitsTextAndRebootWhenUnattendedModeSelected()
+    {
+        var fedora = DistroRegistry.SupportedDistributions.First(d => d.Id == "fedora");
+        var unattendedSetup = new LinuxSetupConfiguration(
+            InteractiveReview: false
+        );
+
+        var plan = new InstallationPlan(
+            fedora,
+            _targetSecondaryDisk,
+            _protectedDisk,
+            53687091200,
+            50,
+            unattendedSetup
+        );
+
+        var kickstart = InstallationOrchestrator.GenerateUnattendedConfig(plan);
+
+        Assert.Contains("text", kickstart);
+        Assert.Contains("reboot", kickstart);
+        Assert.DoesNotContain("graphical", kickstart);
+    }
+
+    [Fact]
+    public void UbuntuAutoinstallEnablesStorageInteractiveSectionWhenReviewRequested()
+    {
+        var ubuntu = DistroRegistry.SupportedDistributions.First(d => d.Id == "ubuntu");
+        var reviewSetup = new LinuxSetupConfiguration(InteractiveReview: true);
+        var planReview = new InstallationPlan(ubuntu, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, reviewSetup);
+        var configReview = InstallationOrchestrator.GenerateUnattendedConfig(planReview);
+        Assert.Contains("interactive-sections: [\"storage\"]", configReview);
+
+        var unattendedSetup = new LinuxSetupConfiguration(InteractiveReview: false);
+        var planUnattended = new InstallationPlan(ubuntu, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, unattendedSetup);
+        var configUnattended = InstallationOrchestrator.GenerateUnattendedConfig(planUnattended);
+        Assert.Contains("interactive-sections: []", configUnattended);
+    }
+
+    [Fact]
+    public void FedoraKickstartIncludesNvidiaDriversAndRPMFusionWhenRequested()
+    {
+        var fedora = DistroRegistry.SupportedDistributions.First(d => d.Id == "fedora");
+        var nvidiaSetup = new LinuxSetupConfiguration(
+            InstallNvidiaDrivers: true,
+            InstallProprietaryCodecs: true
+        );
+
+        var plan = new InstallationPlan(fedora, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, nvidiaSetup);
+        var kickstart = InstallationOrchestrator.GenerateUnattendedConfig(plan);
+
+        Assert.Contains("rpmfusion-nonfree", kickstart);
+        Assert.Contains("akmod-nvidia", kickstart);
+        Assert.Contains("xorg-x11-drv-nvidia-cuda", kickstart);
+    }
+
+    [Fact]
+    public void FedoraKickstartIncludesLegionSpeakerFixWhenLinux73Selected()
+    {
+        var fedora = DistroRegistry.SupportedDistributions.First(d => d.Id == "fedora");
+        var legionSetup = new LinuxSetupConfiguration(
+            KernelSelection: "linux-7.3-legion"
+        );
+
+        var plan = new InstallationPlan(fedora, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, legionSetup);
+        var kickstart = InstallationOrchestrator.GenerateUnattendedConfig(plan);
+
+        Assert.Contains("kernel-vanilla-mainline", kickstart);
+        Assert.Contains("alsa-legion-speakers.conf", kickstart);
+        Assert.Contains("options snd-hda-intel model=dual-codecs", kickstart);
+    }
+
+    [Fact]
+    public void UbuntuAutoinstallIncludesNvidiaDriversAndLegionAudioFix()
+    {
+        var ubuntu = DistroRegistry.SupportedDistributions.First(d => d.Id == "ubuntu");
+        var setup = new LinuxSetupConfiguration(
+            InstallNvidiaDrivers: true,
+            KernelSelection: "linux-7.3-legion"
+        );
+
+        var plan = new InstallationPlan(ubuntu, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, setup);
+        var config = InstallationOrchestrator.GenerateUnattendedConfig(plan);
+
+        Assert.Contains("ubuntu-drivers", config);
+        Assert.Contains("alsa-legion-speakers.conf", config);
+        Assert.Contains("options snd-hda-intel model=dual-codecs", config);
+    }
 }

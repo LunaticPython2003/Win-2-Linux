@@ -79,6 +79,8 @@ public static class EspCreationService
             create partition efi size=4096
             format fs=fat32 quick label="LINUXEFI"
             assign letter={tempLetter}
+            create partition primary
+            set id=0fc63daf-8483-4772-8e79-3d69d8477de4
             exit
             """;
 
@@ -106,7 +108,7 @@ public static class EspCreationService
 
         progress.Report(new ProgressUpdate(8, 10, "EFI Partition Ready", 73,
             $"[ESP Creation] ✓ FAT32 ESP ready: Disk {plan.Target.DiskNumber} Partition {partNumber} " +
-            $"({partSize / (1024 * 1024)} MB) at {tempLetter}:\\"));
+            $"({partSize / (1024 * 1024)} MB) at {tempLetter}:\\. Linux root partition provisioned (type 0fc63daf)."));
 
         return new EspCreationResult(
             DiskNumber: plan.Target.DiskNumber,
@@ -118,7 +120,7 @@ public static class EspCreationService
     }
 
     /// <summary>
-    /// Deletes the EFI System Partition from the secondary target disk and extends the adjacent Windows volume to reclaim space.
+    /// Deletes the EFI System Partition and dedicated Linux partition from the secondary target disk and extends the adjacent Windows volume to reclaim space.
     /// Hard assertion: strictly prevents modifying the protected Windows system disk.
     /// </summary>
     public static async Task<bool> DeleteEspAndExtendVolumeAsync(
@@ -139,31 +141,59 @@ public static class EspCreationService
             return false;
         }
 
-        string script;
+        var partitionsToDelete = await FindTrailingPartitionsAsync(targetDiskNumber, existingPartNo, ct);
+        if (partitionsToDelete.Count == 0)
+        {
+            partitionsToDelete.Add(existingPartNo);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"select disk {targetDiskNumber}");
+        foreach (var p in partitionsToDelete)
+        {
+            sb.AppendLine($"select partition {p}");
+            sb.AppendLine("delete partition override");
+        }
         if (!string.IsNullOrWhiteSpace(driveLetter))
         {
             var cleanLetter = driveLetter.TrimEnd('\\', ':');
-            script = $"""
-                select disk {targetDiskNumber}
-                select partition {existingPartNo}
-                delete partition override
-                select volume {cleanLetter}
-                extend
-                exit
-                """;
+            sb.AppendLine($"select volume {cleanLetter}");
+            sb.AppendLine("extend");
         }
-        else
-        {
-            script = $"""
-                select disk {targetDiskNumber}
-                select partition {existingPartNo}
-                delete partition override
-                exit
-                """;
-        }
+        sb.AppendLine("exit");
 
-        await RunDiskpartScriptAsync(script, ct);
+        await RunDiskpartScriptAsync(sb.ToString(), ct);
         return true;
+    }
+
+    private static async Task<List<int>> FindTrailingPartitionsAsync(
+        int diskNumber, int minPartNumber, CancellationToken ct)
+    {
+        return await Task.Run(() =>
+        {
+            var list = new List<int>();
+            try
+            {
+                var scope = new ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
+                scope.Connect();
+
+                using var searcher = new ManagementObjectSearcher(scope,
+                    new ObjectQuery($"SELECT PartitionNumber FROM MSFT_Partition WHERE DiskNumber = {diskNumber}"));
+                using var collection = searcher.Get();
+
+                foreach (ManagementObject p in collection)
+                {
+                    int partNo = Convert.ToInt32(p["PartitionNumber"] ?? 0);
+                    if (partNo >= minPartNumber)
+                    {
+                        list.Add(partNo);
+                    }
+                }
+            }
+            catch { }
+
+            return list.OrderByDescending(x => x).ToList();
+        }, ct);
     }
 
     /// <summary>

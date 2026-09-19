@@ -3,6 +3,7 @@ using Win2Linux.Core.Boot;
 using Win2Linux.Core.Common;
 using Win2Linux.Core.Distros;
 using Win2Linux.Core.Extract;
+using Win2Linux.Core.Models;
 using Win2Linux.Core.Orchestrator;
 
 namespace Win2Linux.Core.Boot;
@@ -46,7 +47,8 @@ public static class EspPopulationService
         string efiStagingDir,
         string unattendedDir,
         IProgress<ProgressUpdate> progress,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        LinuxSetupConfiguration? setupConfig = null)
     {
         espRoot = espRoot.TrimEnd('\\', '/');
 
@@ -79,7 +81,7 @@ public static class EspPopulationService
         var grubBootDest = Path.Combine(efiBootDir, "grubx64.efi");
         FileUtilities.SafeCopy(grubSource, grubBootDest);
 
-        var grubCfgContent = GenerateInstallerGrubConfig(distro);
+        var grubCfgContent = GenerateInstallerGrubConfig(distro, setupConfig);
         var grubBootCfgDest = Path.Combine(efiBootDir, "grub.cfg");
         await File.WriteAllTextAsync(grubBootCfgDest, grubCfgContent, ct);
 
@@ -213,8 +215,25 @@ public static class EspPopulationService
     /// Generates a grub.cfg for the Linux installer environment.
     /// Uses GRUB's search --file to locate the ESP partition dynamically — no hardcoded partition numbers.
     /// </summary>
-    private static string GenerateInstallerGrubConfig(DistroProfile distro)
+    private static string GenerateInstallerGrubConfig(DistroProfile distro, LinuxSetupConfiguration? setupConfig = null)
     {
+        var extraArgs = string.Empty;
+        if (setupConfig?.SafeGraphics == true)
+        {
+            extraArgs += " nomodeset";
+        }
+        if (setupConfig?.KernelSelection == "linux-7.3-legion")
+        {
+            extraArgs += " snd_hda_intel.model=dual-codecs";
+        }
+        if (!string.IsNullOrWhiteSpace(setupConfig?.CustomKernelArgs))
+        {
+            extraArgs += " " + setupConfig.CustomKernelArgs.Trim();
+        }
+
+        var autoinstallArgs = (distro.AutoinstallKernelArgs + extraArgs).Trim();
+        var interactiveArgs = (distro.GetInteractiveKernelArgs() + extraArgs).Trim();
+
         return $$"""
             # Win2Linux Installer GRUB Configuration
             # Auto-generated for {{distro.DisplayName}}
@@ -236,13 +255,13 @@ public static class EspPopulationService
 
             menuentry "Install {{distro.DisplayName}} (Automated Dual-Boot)" --class linux {
                 echo "Win2Linux: Loading {{distro.DisplayName}} installer kernel (Automated)..."
-                linux  /win2linux/boot/vmlinuz {{distro.AutoinstallKernelArgs}}
+                linux  /win2linux/boot/vmlinuz {{autoinstallArgs}}
                 initrd /win2linux/boot/initrd
             }
 
             menuentry "Try or Install {{distro.DisplayName}} (Interactive Live Desktop)" --class linux {
                 echo "Win2Linux: Loading {{distro.DisplayName}} Live Desktop..."
-                linux  /win2linux/boot/vmlinuz {{distro.GetInteractiveKernelArgs()}}
+                linux  /win2linux/boot/vmlinuz {{interactiveArgs}}
                 initrd /win2linux/boot/initrd
             }
 

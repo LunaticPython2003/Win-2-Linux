@@ -15,8 +15,13 @@ public record InstallationPlan(
     CandidateTarget Target,
     ProtectedSystemDisk ProtectedDisk,
     ulong ReservedBytes,
-    double ReservedGb
-);
+    double ReservedGb,
+    LinuxSetupConfiguration? SetupConfig = null
+)
+{
+    public LinuxSetupConfiguration EffectiveSetupConfig => SetupConfig ?? LinuxSetupConfiguration.CreateDefault(SelectedDistro.Id);
+}
+
 
 public record ProgressUpdate(
     int StepIndex,
@@ -198,7 +203,7 @@ public static class InstallationOrchestrator
                     $"[ESP] Writing EFI tree, boot files, and autoinstall payload to {espRoot}..."));
 
                 await EspPopulationService.PopulateEspAsync(
-                    plan.SelectedDistro, espRoot, bootStagingDir, efiStagingDir, unattendedDir, progress, ct);
+                    plan.SelectedDistro, espRoot, bootStagingDir, efiStagingDir, unattendedDir, progress, ct, plan.EffectiveSetupConfig);
 
                 // Also maintain a backup copy in D:\win2linux\esp-stage
                 try
@@ -206,7 +211,7 @@ public static class InstallationOrchestrator
                     var backupEspRoot = Path.Combine(plan.Target.DriveLetter.TrimEnd('\\', '/') + "\\", "win2linux", "esp-stage");
                     Directory.CreateDirectory(backupEspRoot);
                     await EspPopulationService.PopulateEspAsync(
-                        plan.SelectedDistro, backupEspRoot, bootStagingDir, efiStagingDir, unattendedDir, progress, ct);
+                        plan.SelectedDistro, backupEspRoot, bootStagingDir, efiStagingDir, unattendedDir, progress, ct, plan.EffectiveSetupConfig);
                 }
                 catch { /* Backup is best-effort */ }
 
@@ -566,6 +571,9 @@ public static class InstallationOrchestrator
 
     private static string GenerateUbuntuAutoinstall(InstallationPlan plan, long linuxSizeMb)
     {
+        var config = plan.EffectiveSetupConfig;
+        var interactiveSections = config.InteractiveReview ? "[\"storage\"]" : "[]";
+
         // NOTE: preserve: true on the disk is CRITICAL to protect the existing D: partition.
         // The ESP we created is referenced by partition number recorded in state.json.
         // The root partition uses size: -1 (consume all remaining unallocated space).
@@ -573,14 +581,14 @@ public static class InstallationOrchestrator
             #cloud-config
             autoinstall:
               version: 1
-              interactive-sections: []
-              locale: en_US.UTF-8
+              interactive-sections: {{interactiveSections}}
+              locale: {{config.Locale}}
               keyboard:
-                layout: us
+                layout: {{config.KeyboardLayout}}
               identity:
-                realname: Linux User
-                username: user
-                hostname: {{plan.SelectedDistro.Id}}-dualboot
+                realname: "{{config.RealName}}"
+                username: {{config.Username}}
+                hostname: {{config.Hostname}}
                 # Generated placeholder — user should change on first login
                 password: '$6$rounds=4096$win2linux$placeholder'
               storage:
@@ -625,10 +633,10 @@ public static class InstallationOrchestrator
               packages:
                 - shim-signed
                 - grub-efi-amd64-signed
-                - efibootmgr
+                - efibootmgr{{(config.InstallNvidiaDrivers ? "\n    - ubuntu-drivers-common\n    - nvidia-driver-570" : "")}}
               early-commands:
                 - echo "Win2Linux: Starting {{plan.SelectedDistro.DisplayName}} automated dual-boot install..."
-              late-commands:
+              late-commands:{{(config.InstallNvidiaDrivers ? "\n    - curtin in-target --target=/target -- ubuntu-drivers install || true" : "")}}{{(config.KernelSelection == "linux-7.3-legion" ? "\n    - >-\n      curtin in-target --target=/target --\n      bash -c 'mkdir -p /etc/modprobe.d && echo -e \"# Lenovo Legion Speaker Audio Fix\\noptions snd-hda-intel model=dual-codecs\\noptions snd-sof-pci-intel-tgl dmic_detect=0\" > /etc/modprobe.d/alsa-legion-speakers.conf'" : "")}}
                 # Register permanent UEFI NVRAM 'ubuntu' entry via efibootmgr
                 - >-
                   curtin in-target --target=/target --
@@ -659,18 +667,21 @@ public static class InstallationOrchestrator
 
     private static string GenerateZorinAutoinstall(InstallationPlan plan, long linuxSizeMb)
     {
+        var config = plan.EffectiveSetupConfig;
+        var interactiveSections = config.InteractiveReview ? "[\"storage\"]" : "[]";
+
         return $$"""
             #cloud-config
             autoinstall:
               version: 1
-              interactive-sections: []
-              locale: en_US.UTF-8
+              interactive-sections: {{interactiveSections}}
+              locale: {{config.Locale}}
               keyboard:
-                layout: us
+                layout: {{config.KeyboardLayout}}
               identity:
-                realname: Linux User
-                username: user
-                hostname: zorin-dualboot
+                realname: "{{config.RealName}}"
+                username: {{config.Username}}
+                hostname: {{config.Hostname}}
                 password: '$6$rounds=4096$win2linux$placeholder'
               storage:
                 layout:
@@ -730,6 +741,8 @@ public static class InstallationOrchestrator
 
     private static string GenerateFedoraKickstart(InstallationPlan plan, long linuxSizeMb)
     {
+        var config = plan.EffectiveSetupConfig;
+
         var dePackageGroup = plan.SelectedDistro.SelectedDesktopEnvironment == "gnome"
             ? "@^workstation-product-environment"
             : "@^kde-desktop-environment";
@@ -738,16 +751,74 @@ public static class InstallationOrchestrator
             ? "GNOME Workstation"
             : "KDE Plasma";
 
+        var modeDirective = config.InteractiveReview ? "graphical" : "text\nreboot";
+
+        var extraRepos = string.Empty;
+        var extraPackages = string.Empty;
+        var postScript = new System.Text.StringBuilder();
+
+        if (config.InstallNvidiaDrivers)
+        {
+            extraRepos += """
+                # RPM Fusion non-free repository for NVIDIA proprietary drivers
+                repo --name="rpmfusion-nonfree" --mirrorlist=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-44&arch=x86_64
+                repo --name="rpmfusion-nonfree-updates" --mirrorlist=https://mirrors.rpmfusion.org/metalink?repo=nonfree-fedora-updates-released-44&arch=x86_64
+
+                """;
+            extraPackages += "\nakmod-nvidia\nxorg-x11-drv-nvidia-cuda";
+            postScript.AppendLine("# Configure RPM Fusion and NVIDIA proprietary drivers");
+            postScript.AppendLine("dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm || true");
+            postScript.AppendLine("dnf install -y akmod-nvidia xorg-x11-drv-nvidia-cuda || true");
+        }
+
+        if (config.InstallProprietaryCodecs)
+        {
+            postScript.AppendLine("# Install multimedia codecs and hardware acceleration");
+            postScript.AppendLine("dnf groupupdate -y multimedia --setop=\"install_weak_deps=False\" --exclude=PackageKit-gstreamer-plugin || true");
+        }
+
+        if (config.KernelSelection == "linux-7.3-legion")
+        {
+            postScript.AppendLine("# Install Linux 7.3 Mainline / Lenovo Legion Audio Patched Kernel");
+            postScript.AppendLine("dnf copr enable -y @kernel-vanilla/mainline || true");
+            postScript.AppendLine("dnf install -y kernel-vanilla-mainline kernel-vanilla-mainline-modules-extra || dnf upgrade -y kernel || true");
+            postScript.AppendLine("# Fix Lenovo Legion CS35L41 internal speaker smart amplifier audio routing");
+            postScript.AppendLine("mkdir -p /etc/modprobe.d");
+            postScript.AppendLine("cat << 'EOF' > /etc/modprobe.d/alsa-legion-speakers.conf");
+            postScript.AppendLine("# Lenovo Legion internal speaker amplifier fix (CS35L41 dual amplifier routing)");
+            postScript.AppendLine("options snd-hda-intel model=dual-codecs");
+            postScript.AppendLine("options snd-sof-pci-intel-tgl dmic_detect=0");
+            postScript.AppendLine("EOF");
+        }
+        else if (config.KernelSelection == "linux-zen")
+        {
+            postScript.AppendLine("# Install Zen low-latency performance kernel");
+            postScript.AppendLine("dnf copr enable -y sentry/kernel-fsync || true");
+            postScript.AppendLine("dnf install -y kernel-fsync || true");
+        }
+
+        var postSection = postScript.Length > 0
+            ? $"\n%post\n{postScript}%end\n"
+            : string.Empty;
+
+        // In interactive review mode, Anaconda displays the pre-populated configuration hub (language, keyboard,
+        // timezone, user account, and dedicated storage target), allowing the user to review before clicking "Begin Installation".
         return $$"""
             # Fedora 44 ({{deLabel}}) Kickstart Configuration
             # Generated by Win2Linux Dual-Boot Installer
-            text
-            lang en_US.UTF-8
-            keyboard us
-            timezone UTC
+            {{modeDirective}}
+            lang {{config.Locale}}
+            keyboard {{config.KeyboardLayout}}
+            timezone {{config.Timezone}}
+            {{extraRepos}}
+            # Network hostname configuration
+            network --bootproto=dhcp --device=link --activate --hostname={{config.Hostname}}
 
-            # Automated partitioning into unallocated free space only
-            # NEVER clear or modify existing Windows partitions
+            # User account creation with administrative wheel group privileges
+            user --name={{config.Username}} --gecos="{{config.RealName}}" --plaintext --password={{config.Password}} --groups=wheel
+
+            # Automated partitioning: install into free unallocated space on target disk
+            # NEVER clear or modify existing Windows partitions (Disk {{plan.ProtectedDisk.DiskNumber}} and Volume {{plan.Target.DriveLetter}} are protected)
             bootloader --location=none
             clearpart --none
             autopart --type=btrfs --nohome
@@ -757,26 +828,29 @@ public static class InstallationOrchestrator
             kernel
             grub2-efi-x64
             shim-x64
-            efibootmgr
+            efibootmgr{{extraPackages}}
             %end
-
-            reboot
+            {{postSection}}
             """;
     }
 
     private static string GenerateMintPreseed(InstallationPlan plan)
     {
+        var config = plan.EffectiveSetupConfig;
+        var autoReboot = (!config.InteractiveReview).ToString().ToLowerInvariant();
+        var extraPkgs = config.InstallNvidiaDrivers ? " nvidia-driver-560 ubuntu-drivers-common" : "";
+
         return $$"""
             # Linux Mint 22.1 Automatic Ubiquity Preseed Configuration
             # Generated by Win2Linux Dual-Boot Installer
-            d-i debian-installer/locale string en_US.UTF-8
+            d-i debian-installer/locale string {{config.Locale}}
             d-i console-setup/ask_detect boolean false
-            d-i keyboard-configuration/layoutcode string us
+            d-i keyboard-configuration/layoutcode string {{config.KeyboardLayout}}
             d-i netcfg/choose_interface select auto
-            d-i netcfg/get_hostname string linuxmint-dualboot
+            d-i netcfg/get_hostname string {{config.Hostname}}
 
             # Clock and time zone
-            d-i time/zone string UTC
+            d-i time/zone string {{config.Timezone}}
             d-i clock-setup/utc boolean true
 
             # Partitioning: install into free unallocated space on secondary disk, preserve D:
@@ -792,14 +866,19 @@ public static class InstallationOrchestrator
             d-i grub-installer/with_other_os boolean true
             d-i grub-installer/bootdev string default
 
-            # User setup placeholder
-            d-i passwd/user-fullname string Linux User
-            d-i passwd/username string user
+            # User setup
+            d-i passwd/user-fullname string {{config.RealName}}
+            d-i passwd/username string {{config.Username}}
             d-i passwd/user-password-crypted password $6$rounds=4096$win2linux$placeholder
 
+            # Proprietary drivers and codecs
+            d-i pkgsel/include string{{extraPkgs}}
+            ubiquity ubiquity/use_nonfree boolean {{config.InstallProprietaryCodecs.ToString().ToLowerInvariant()}}
+
             # Completion
-            ubiquity ubiquity/reboot boolean true
+            ubiquity ubiquity/reboot boolean {{autoReboot}}
             d-i finish-install/reboot_in_progress note
             """;
     }
 }
+
