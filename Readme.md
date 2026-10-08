@@ -6,6 +6,13 @@ Win-2-Linux is a Windows-native Linux installation tool designed to make setting
 
 Instead of manually creating a bootable USB, repartitioning disks, configuring GRUB, and installing Linux through a traditional installer, Win-2-Linux orchestrates the process directly from Windows.
 
+<hr>
+
+### Gen-AI notice 
+
+- The GUI part of Win2Linux has been partly written with generative AI (minus the actual orchestration part) and therefore, might not be fully refined. The few remaining UI bugs would be refined fully without any further usage after all the core functioning of all the distros is fully established.
+- Parts of this documentation and the releases have also been drafted with the help of generative AI, which, although has been fully refined to contain no false or unverified claims or information; is still communicated explicitly for utmost transparency.
+
 ## But, what is Win-2-Linux?
 
 Win-2-Linux aims to provide a Wubi-like ([Find more here](https://github.com/hakuna-m/wubiuefi)) installation experience for modern UEFI systems, while still producing a conventional Linux installation.
@@ -34,7 +41,15 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 - Built with modern .NET 8, C#, and WinUI 3 (Windows App SDK Fluent Design)
 - Protects the Windows system disk from destructive partition operations
 - Boots into a graphical setup window to review all the setups
+- Ubuntu 26 LTS autoinstaller works flawlessly now
 - Ability to select from multiple kernels. 
+
+## What's new?
+
+The latest version of Win2Linux now supports fully automated installation for Ubuntu 26 LTS without any manual intervention whatsoever. Lets talk about how this works specifically - 
+- The GUI side of the installer takes all the parameters required from Windows which includes signin account details, region info, internet settings, kernel selection, proprietory drivers and stages them.
+- The staged changes are then written into an [autoinstall.yaml](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html) file which the subiquity installer of Ubuntu picks up during setup and installs without manual intervention.
+- Fedora autoinstaller has now been more refined. However, if no-manual instllation is of utmost importance; Ubuntu should be undoubtedly preferred. 
 
 
 ## Downloads & Releases
@@ -146,7 +161,7 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [ ] Add support for more bootloaders
 - [ ] Add support for more UEFI boot entries
 - [ ] Add support for automatically signing unsupported distros for Secure Boot
-- [x] Make it possible to completely bypass the need for booting into installer (Initial support for Fedora <sup>[2]</sup>)
+- [x] Make it possible to completely bypass the need for booting into installer (Fully tested support for Ubuntu and partial support for Fedora)
 - [ ] Bring your own ISO support
 
 ## Screenshots
@@ -159,4 +174,4 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 
 ## References
 [1] Builds for the latest commits have not been released yet. Not because the changes are thermonuclear in nature, but because I wanted to rigorously test everything before a regular release. If you want to test the latest changes yourself, simply clone the repository and run `Start-Win2Linux.cmd` or `dotnet run`. <br>
-[2] Although the support for Fedora has been tested, it still carries an additional baggage of a potential brick of subsystem. The feature will be refined in future releases. 
+[2] Ubuntu's unattended installation is natively supported by Canonical's newly developed subiquity installer and therefore, is the most stbale and easy to setup. Fedora's installation works, but the system is not as robust as Ubuntu and has some refinement to be done.
