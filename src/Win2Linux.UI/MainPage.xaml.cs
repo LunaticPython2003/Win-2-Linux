@@ -9,6 +9,7 @@ using System.IO;
 using Win2Linux.Core.Boot;
 using Win2Linux.Core.Distros;
 using Win2Linux.Core.Models;
+using Win2Linux.Core.Networking;
 using Win2Linux.Core.Orchestrator;
 using Win2Linux.Core.Storage;
 using Windows.UI;
@@ -20,6 +21,11 @@ public sealed partial class MainPage : Page
     private DiscoveryReport? _discoveryReport;
     private DistroProfile _selectedDistro;
     private CandidateTarget? _activeTarget;
+    private readonly WifiProfileService _wifiProfileService = new();
+    private SavedWifiProfile? _selectedWifiProfile;
+    private WifiNetworkConfiguration? _selectedWifiCredentials;
+    private bool _isUpdatingWifiOptions;
+    private int _wifiSelectionVersion;
 
     private double _totalDiskGb = 953;
     private double _usedDataGb = 201;
@@ -28,6 +34,7 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        CmbWifiProfile.SelectedIndex = 0;
         _selectedDistro = DistroRegistry.SupportedDistributions[0]; // Ubuntu default
         Loaded += MainPage_Loaded;
     }
@@ -36,7 +43,9 @@ public sealed partial class MainPage : Page
     {
         Log("MainPage_Loaded fired");
         InitializeSetupDefaults();
+        PanelWifiConfig.Visibility = _selectedDistro.Id == "ubuntu" ? Visibility.Visible : Visibility.Collapsed;
         await LoadDiscoveryDataAsync();
+        await RefreshWifiProfilesAsync();
     }
 
     private async void RefreshDiscovery_Click(object sender, RoutedEventArgs e)
@@ -70,7 +79,7 @@ public sealed partial class MainPage : Page
             {
                 var sysGb = sysDisk.TotalBytes / (1024 * 1024 * 1024);
                 TxtProtectedDiskTitle.Text = $"Disk {sysDisk.DiskNumber} — {sysDisk.FriendlyName} ({sysGb} GB {sysDisk.BusType})";
-                TxtProtectedDiskSub.Text = $"Contains {_discoveryReport.ProtectedSystemDisk.SystemVolume} ({sysDisk.SerialNumber}). Strictly locked — will never be resized, partitioned, or modified.";
+                TxtProtectedDiskSub.Text = $"Contains {_discoveryReport.ProtectedSystemDisk.SystemVolume} ({sysDisk.WindowsSerialNumber}). Strictly locked — will never be resized, partitioned, or modified.";
             }
 
             // 3. Target Secondary SSD
@@ -118,6 +127,7 @@ public sealed partial class MainPage : Page
             if (distro == null) return;
 
             _selectedDistro = distro;
+            PanelWifiConfig.Visibility = distroId == "ubuntu" ? Visibility.Visible : Visibility.Collapsed;
 
             // Reset all card borders
             var defaultStroke = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
@@ -251,6 +261,19 @@ public sealed partial class MainPage : Page
     private async void StartInstallation_Click(object sender, RoutedEventArgs e)
     {
         if (_activeTarget == null || _discoveryReport == null) return;
+
+        if (_selectedDistro.Id == "ubuntu" && _selectedWifiProfile != null && _selectedWifiCredentials == null)
+        {
+            var wifiDialog = new ContentDialog
+            {
+                Title = "Wi-Fi profile is not ready",
+                Content = "Win2Linux could not read the selected saved network key. Refresh and select it again, or choose 'Do not configure Wi-Fi' and use a wired connection during installation.",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await wifiDialog.ShowAsync();
+            return;
+        }
 
         var linuxSizeGb = DiskShrinkSlider.Value;
         var reservedBytes = (ulong)(linuxSizeGb * 1024 * 1024 * 1024);
@@ -607,8 +630,168 @@ public sealed partial class MainPage : Page
             InteractiveReview: interactiveReview,
             InstallNvidiaDrivers: installNvidia,
             InstallProprietaryCodecs: installCodecs,
-            KernelSelection: kernelSelection
+            KernelSelection: kernelSelection,
+            WifiNetwork: _selectedDistro?.Id == "ubuntu" ? _selectedWifiCredentials : null
         );
+    }
+
+    private async void RefreshWifiProfiles_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshWifiProfilesAsync();
+    }
+
+    private async Task RefreshWifiProfilesAsync()
+    {
+        var previousProfile = _selectedWifiProfile;
+        BtnRefreshWifi.IsEnabled = false;
+        TxtWifiStatus.Text = "Loading saved Wi-Fi networks from Windows…";
+        _isUpdatingWifiOptions = true;
+
+        try
+        {
+            var profiles = await Task.Run(() => _wifiProfileService.GetSavedProfiles());
+            CmbWifiProfile.Items.Clear();
+            CmbWifiProfile.Items.Add(new ComboBoxItem { Content = "Do not configure Wi-Fi" });
+
+            ComboBoxItem? previousItem = null;
+            foreach (var profile in profiles)
+            {
+                var item = new ComboBoxItem
+                {
+                    Content = $"{profile.Ssid} — {profile.InterfaceDescription}",
+                    Tag = profile
+                };
+                CmbWifiProfile.Items.Add(item);
+                if (previousProfile != null &&
+                    profile.InterfaceId == previousProfile.InterfaceId &&
+                    profile.ProfileName.Equals(previousProfile.ProfileName, StringComparison.Ordinal))
+                {
+                    previousItem = item;
+                }
+            }
+
+            CmbWifiProfile.SelectedItem = previousItem ?? CmbWifiProfile.Items[0];
+            _isUpdatingWifiOptions = false;
+
+            if (previousItem?.Tag is SavedWifiProfile savedProfile)
+            {
+                await LoadSelectedWifiProfileAsync(savedProfile);
+            }
+            else
+            {
+                _wifiSelectionVersion++;
+                _selectedWifiProfile = null;
+                _selectedWifiCredentials = null;
+                BtnUpdateExistingWifi.IsEnabled = false;
+                TxtWifiStatus.Text = profiles.Count == 0
+                    ? "No saved Wi-Fi networks were found. Wi-Fi is optional; Ethernet works without this setting."
+                    : "Select a saved network to configure it for Ubuntu, or leave Wi-Fi disabled.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _isUpdatingWifiOptions = false;
+            _wifiSelectionVersion++;
+            _selectedWifiProfile = null;
+            _selectedWifiCredentials = null;
+            BtnUpdateExistingWifi.IsEnabled = false;
+            _isUpdatingWifiOptions = true;
+            CmbWifiProfile.Items.Clear();
+            CmbWifiProfile.Items.Add(new ComboBoxItem { Content = "Do not configure Wi-Fi" });
+            CmbWifiProfile.SelectedIndex = 0;
+            _isUpdatingWifiOptions = false;
+            TxtWifiStatus.Text = $"Could not read Windows Wi-Fi profiles: {ex.Message}";
+            Log($"RefreshWifiProfilesAsync failed: {ex.Message}");
+        }
+        finally
+        {
+            _isUpdatingWifiOptions = false;
+            BtnRefreshWifi.IsEnabled = true;
+        }
+    }
+
+    private async void WifiProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingWifiOptions)
+        {
+            return;
+        }
+
+        if (CmbWifiProfile.SelectedItem is ComboBoxItem { Tag: SavedWifiProfile profile })
+        {
+            await LoadSelectedWifiProfileAsync(profile);
+            return;
+        }
+
+        _wifiSelectionVersion++;
+        _selectedWifiProfile = null;
+        _selectedWifiCredentials = null;
+        BtnUpdateExistingWifi.IsEnabled = false;
+        TxtWifiStatus.Text = "Wi-Fi will not be configured. Ethernet works without this setting.";
+    }
+
+    private async Task LoadSelectedWifiProfileAsync(SavedWifiProfile profile)
+    {
+        var requestVersion = ++_wifiSelectionVersion;
+        _selectedWifiProfile = profile;
+        _selectedWifiCredentials = null;
+        BtnUpdateExistingWifi.IsEnabled = false;
+        TxtWifiStatus.Text = "Reading the selected saved network key from Windows…";
+
+        try
+        {
+            var credentials = await Task.Run(() => _wifiProfileService.ReadSelectedCredentials(profile));
+            if (requestVersion != _wifiSelectionVersion)
+            {
+                return;
+            }
+
+            _selectedWifiCredentials = new WifiNetworkConfiguration(
+                credentials.Ssid,
+                credentials.Password,
+                credentials.IsOpenNetwork);
+            BtnUpdateExistingWifi.IsEnabled = true;
+            TxtWifiStatus.Text = credentials.IsOpenNetwork
+                ? $"Open network '{credentials.Ssid}' selected. Ubuntu will connect without a password."
+                : $"Saved key loaded for '{credentials.Ssid}'. It will be added to Ubuntu's installer and Wi-Fi configuration.";
+        }
+        catch (Exception ex)
+        {
+            if (requestVersion != _wifiSelectionVersion)
+            {
+                return;
+            }
+
+            TxtWifiStatus.Text = ex.Message;
+            Log($"Reading selected Windows Wi-Fi profile failed: {ex.Message}");
+            BtnUpdateExistingWifi.IsEnabled = false;
+        }
+    }
+
+    private async void UpdateExistingWifi_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedWifiCredentials == null)
+        {
+            TxtWifiStatus.Text = "Select a saved network and wait for its key to load first.";
+            return;
+        }
+
+        BtnUpdateExistingWifi.IsEnabled = false;
+        TxtWifiStatus.Text = "Updating the verified existing Ubuntu installer on its EFI partition…";
+        try
+        {
+            await WifiAutoinstallUpdater.UpdateExistingUbuntuAutoinstallAsync(_selectedWifiCredentials);
+            TxtWifiStatus.Text = "Existing Ubuntu autoinstall updated. Restart and select the existing Win2Linux/Ubuntu boot entry to retry; disk partitions were not changed.";
+        }
+        catch (Exception ex)
+        {
+            TxtWifiStatus.Text = ex.Message;
+            Log($"Updating existing Ubuntu Wi-Fi config failed: {ex.Message}");
+        }
+        finally
+        {
+            BtnUpdateExistingWifi.IsEnabled = _selectedWifiCredentials != null;
+        }
     }
 
     private static void Log(string message)

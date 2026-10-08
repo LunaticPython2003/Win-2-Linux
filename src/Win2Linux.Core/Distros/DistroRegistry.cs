@@ -37,7 +37,9 @@ public record DistroProfile(
     string[]? IsoMirrorUrls = null,
     // Desktop Environment options (e.g. for Fedora: KDE Plasma vs GNOME)
     IReadOnlyList<DesktopEnvironmentOption>? DesktopEnvironments = null,
-    string? SelectedDesktopEnvironment = null
+    string? SelectedDesktopEnvironment = null,
+    // Ubuntu 26.04+ Subiquity offline APT expects the suite index and package pool at /cdrom.
+    string? OfflineAptSuite = null
 )
 {
     public string GetInteractiveKernelArgs() => InteractiveKernelArgs ?? AutoinstallKernelArgs;
@@ -67,7 +69,7 @@ public static class DistroRegistry
     {
         new(
             Id: "ubuntu",
-            DisplayName: "Ubuntu 26.04 LTS (Resolute Raccoon)",
+            DisplayName: "Ubuntu 26.04.1 LTS",
             Description: "Industry-standard, highly compatible Long Term Support release with official Microsoft UEFI CA signed shim.",
             AccentColor: "#E95420",
             SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
@@ -77,15 +79,16 @@ public static class DistroRegistry
             UefiBootLabel: "ubuntu",
             DefaultFilesystem: "ext4",
             DefaultVersion: "26.04.1",
-            IsoDownloadUrl: "https://releases.ubuntu.com/26.04.1/ubuntu-26.04.1-live-server-amd64.iso",
+            IsoDownloadUrl: "https://releases.ubuntu.com/26.04.1/ubuntu-26.04.1-desktop-amd64.iso",
             ChecksumUrl: "https://releases.ubuntu.com/26.04.1/SHA256SUMS",
             UnattendedMechanism: "Subiquity Autoinstall (cloud-init)",
             IsoKernelPath: "casper/vmlinuz",
             IsoInitrdPath: "casper/initrd",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/ubuntu/grubx64.efi",
-            AutoinstallKernelArgs: "autoinstall toram quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
-            InteractiveKernelArgs: "toram quiet splash ---"
+            AutoinstallKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram autoinstall subiquity.autoinstallpath=/cdrom/autoinstall.yaml quiet splash ---",
+            InteractiveKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram quiet splash ---",
+            OfflineAptSuite: "resolute"
         ),
         new(
             Id: "fedora",
@@ -106,8 +109,8 @@ public static class DistroRegistry
             IsoInitrdPath: "images/pxeboot/initrd.img",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/fedora/grubx64.efi",
-            AutoinstallKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image rd.live.ram=1 inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
-            InteractiveKernelArgs: "root=live:CDLABEL=LINUXEFI rd.live.image rd.live.ram=1 quiet rhgb",
+            AutoinstallKernelArgs: "root=live:LABEL=LINUXEFI rd.live.image rd.live.ram=1 inst.ks=hd:LABEL=LINUXEFI:/win2linux/unattended/kickstart.ks quiet rhgb",
+            InteractiveKernelArgs: "root=live:LABEL=LINUXEFI rd.live.image rd.live.ram=1 quiet rhgb",
             IsoMirrorUrls: [
                 "https://mirrors.tuna.tsinghua.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
                 "https://mirrors.ustc.edu.cn/fedora/releases/44/KDE/x86_64/iso/Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso",
@@ -162,8 +165,8 @@ public static class DistroRegistry
             IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
-            AutoinstallKernelArgs: "boot=casper toram automatic-ubiquity quiet splash ---",
-            InteractiveKernelArgs: "boot=casper toram quiet splash ---",
+            AutoinstallKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram automatic-ubiquity preseed/file=/cdrom/win2linux/unattended/preseed.cfg quiet splash ---",
+            InteractiveKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram quiet splash ---",
             IsoMirrorUrls: [
                 "https://mirrors.kernel.org/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso",
                 "https://mirrors.layeronline.com/linuxmint/stable/22.1/linuxmint-22.1-cinnamon-64bit.iso"
@@ -188,8 +191,8 @@ public static class DistroRegistry
             IsoInitrdPath: "casper/initrd.lz",
             IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
             IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
-            AutoinstallKernelArgs: "boot=casper toram quiet splash --- ds=nocloud;s=/cdrom/win2linux/unattended/",
-            InteractiveKernelArgs: "boot=casper toram quiet splash ---",
+            AutoinstallKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram autoinstall \"ds=nocloud\\;s=/cdrom/win2linux/unattended/\" quiet splash ---",
+            InteractiveKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram quiet splash ---",
             IsoMirrorUrls: [
                 "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso"
             ]

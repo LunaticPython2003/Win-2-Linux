@@ -8,7 +8,7 @@ public class SafetyTests
     private readonly ProtectedSystemDisk _protectedDisk = new(
         DiskNumber: 0,
         DiskGuid: "94742ff6-a69f-49c1-80c4-07eb17c0a2cd",
-        DiskSerial: "0025_38F6_51CE_9992.",
+        WindowsDiskSerial: "0025_38F6_51CE_9992.",
         SystemVolume: "C:",
         Status: "PROTECTED_SYSTEM_DISK - CANNOT BE MODIFIED"
     );

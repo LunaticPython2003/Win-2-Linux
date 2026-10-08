@@ -14,7 +14,7 @@ namespace Win2Linux.Core.Extract;
 ///
 /// Extraction strategy:
 ///   1. PRIMARY: Windows native Mount-DiskImage PowerShell cmdlet (native, fast, no external tools needed)
-///   2. FALLBACK: WSL with 7-zip or bundled 7za.exe
+///   2. FALLBACK: WSL with 7-zip or bundled/installed full 7z.exe with ISO support
 /// </summary>
 public static class IsoExtractService
 {
@@ -26,6 +26,241 @@ public static class IsoExtractService
     /// </summary>
     public static bool RequiresLiveSquashfs(DistroProfile distro) =>
         distro.Id is "fedora";
+
+    public static bool RequiresCasper(DistroProfile distro) =>
+        distro.Id is "ubuntu" or "linuxmint" or "zorin";
+
+    /// <summary>
+    /// Ubuntu profiles with an OfflineAptSuite require the ISO's local APT index and
+    /// package pool to be present at the root of /cdrom. Subiquity 26.04.1 keeps
+    /// cdrom.sources enabled for offline installs and expects this full media layout.
+    /// </summary>
+    public static bool RequiresOfflineAptRepository(DistroProfile distro) =>
+        distro.Id.Equals("ubuntu", StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(distro.OfflineAptSuite);
+
+    /// <summary>
+    /// Copies an Ubuntu ISO's local APT repository into the boot staging root, where
+    /// EspPopulationService places it at the root of the partition mounted as /cdrom.
+    /// </summary>
+    public static void StageOfflineAptRepositoryFromIsoRoot(
+        DistroProfile distro,
+        string isoRoot,
+        string bootStagingDir,
+        CancellationToken ct = default)
+    {
+        if (!RequiresOfflineAptRepository(distro))
+            return;
+
+        var suite = GetOfflineAptSuite(distro);
+        var sourceRepository = Path.Combine(isoRoot, "dists", suite);
+        var sourcePool = Path.Combine(isoRoot, "pool");
+        if (!HasOfflineAptRepository(distro, isoRoot))
+        {
+            throw new IsoExtractException(
+                $"The {distro.DisplayName} ISO is missing its offline APT repository: " +
+                $"expected dists/{suite}/Release and at least one package under pool/. " +
+                "The installer cannot use the partial boot payload as /cdrom.");
+        }
+
+        CopyDirectoryContents(sourceRepository, Path.Combine(bootStagingDir, "dists", suite), ct);
+        CopyDirectoryContents(sourcePool, Path.Combine(bootStagingDir, "pool"), ct);
+
+        if (!HasOfflineAptRepository(distro, bootStagingDir))
+        {
+            throw new IsoExtractException(
+                $"The offline APT repository for {distro.DisplayName} was not staged completely.");
+        }
+    }
+
+    /// <summary>Returns whether a repository root has the suite index and local packages.</summary>
+    public static bool HasOfflineAptRepository(DistroProfile distro, string repositoryRoot)
+    {
+        if (!RequiresOfflineAptRepository(distro))
+            return true;
+
+        var releaseFile = Path.Combine(repositoryRoot, "dists", GetOfflineAptSuite(distro), "Release");
+        var suiteDirectory = Path.GetDirectoryName(releaseFile)!;
+        var poolDirectory = Path.Combine(repositoryRoot, "pool");
+        return File.Exists(releaseFile) && new FileInfo(releaseFile).Length > 0 &&
+               Directory.Exists(suiteDirectory) &&
+               Directory.EnumerateFiles(suiteDirectory, "Packages*", SearchOption.AllDirectories)
+                   .Any(f => new FileInfo(f).Length > 0) &&
+               Directory.Exists(poolDirectory) &&
+               Directory.EnumerateFiles(poolDirectory, "*.deb", SearchOption.AllDirectories).Any(f => new FileInfo(f).Length > 0);
+    }
+
+    /// <summary>
+    /// Stages the official ISO repository used by Ubuntu 26.04.1's offline APT setup.
+    /// The network is not used for this copy, and the repository is kept at the same
+    /// relative paths as on the original ISO.
+    /// </summary>
+    public static async Task ExtractOfflineAptRepositoryAsync(
+        DistroProfile distro,
+        string isoPath,
+        string bootStagingDir,
+        IProgress<ProgressUpdate> progress,
+        CancellationToken ct = default)
+    {
+        if (!RequiresOfflineAptRepository(distro))
+            return;
+
+        progress.Report(new ProgressUpdate(5, 10, "Extracting Offline APT Repository", 46,
+            $"[Extract] Staging dists/{GetOfflineAptSuite(distro)} and pool from the Ubuntu ISO..."));
+
+        var extracted = false;
+        char? driveLetter = null;
+        try
+        {
+            driveLetter = await MountIsoAsync(isoPath, ct);
+            if (driveLetter != null)
+            {
+                await Task.Run(
+                    () => StageOfflineAptRepositoryFromIsoRoot(distro, $"{driveLetter.Value}:\\", bootStagingDir, ct),
+                    ct);
+                extracted = true;
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            progress.Report(new ProgressUpdate(5, 10, "Extracting Offline APT Repository", 46,
+                $"[Extract] Native ISO repository copy failed ({ex.Message}); trying the archive extractor..."));
+        }
+        finally
+        {
+            if (driveLetter != null)
+                await DismountIsoAsync(isoPath, CancellationToken.None);
+        }
+
+        if (!extracted)
+        {
+            try
+            {
+                await ExtractOfflineAptRepositoryViaArchiveAsync(
+                    isoPath, GetOfflineAptSuite(distro), bootStagingDir, CanUseWsl(), ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new IsoExtractException(
+                    $"Could not stage the offline APT repository from {Path.GetFileName(isoPath)}. " +
+                    $"Ubuntu {distro.DisplayName} requires dists/{GetOfflineAptSuite(distro)}/Release and pool/ on /cdrom. " +
+                    $"Archive extraction failed: {ex.Message}");
+            }
+        }
+
+        if (!HasOfflineAptRepository(distro, bootStagingDir))
+        {
+            throw new IsoExtractException(
+                $"The staged Ubuntu APT repository is incomplete: dists/{GetOfflineAptSuite(distro)}/Release " +
+                "or local pool packages are missing.");
+        }
+
+        progress.Report(new ProgressUpdate(5, 10, "Offline APT Repository Staged", 47,
+            "[Extract] ✓ Ubuntu suite metadata and package pool are available locally for Subiquity"));
+    }
+
+    private static string GetOfflineAptSuite(DistroProfile distro)
+    {
+        var suite = distro.OfflineAptSuite?.Trim();
+        if (string.IsNullOrEmpty(suite) || suite.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '.' and not '+'))
+            throw new IsoExtractException($"Ubuntu profile '{distro.DisplayName}' has an invalid offline APT suite.");
+        return suite;
+    }
+
+    private static void CopyDirectoryContents(
+        string sourceDirectory,
+        string destinationDirectory,
+        CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(destinationDirectory);
+        foreach (var directory in Directory.EnumerateDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            ct.ThrowIfCancellationRequested();
+            var relativePath = Path.GetRelativePath(sourceDirectory, directory);
+            Directory.CreateDirectory(Path.Combine(destinationDirectory, relativePath));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            ct.ThrowIfCancellationRequested();
+            var relativePath = Path.GetRelativePath(sourceDirectory, file);
+            FileUtilities.SafeCopy(file, Path.Combine(destinationDirectory, relativePath));
+        }
+    }
+
+    private static async Task ExtractOfflineAptRepositoryViaArchiveAsync(
+        string isoPath,
+        string suite,
+        string destinationDirectory,
+        bool useWsl,
+        CancellationToken ct)
+    {
+        Directory.CreateDirectory(destinationDirectory);
+        var psi = new ProcessStartInfo
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        if (useWsl)
+        {
+            psi.FileName = "wsl.exe";
+            psi.ArgumentList.Add("--");
+            psi.ArgumentList.Add("7z");
+            psi.ArgumentList.Add("x");
+            psi.ArgumentList.Add("-tiso");
+            psi.ArgumentList.Add(ToWslPath(isoPath));
+            psi.ArgumentList.Add($"dists/{suite}/*");
+            psi.ArgumentList.Add("pool/*");
+            psi.ArgumentList.Add("-r");
+            psi.ArgumentList.Add($"-o{ToWslPath(destinationDirectory)}");
+            psi.ArgumentList.Add("-y");
+        }
+        else
+        {
+            psi.FileName = ResolveSevenZipExe()
+                ?? throw new IsoExtractException("ISO-capable 7z.exe not found and WSL 7-zip is unavailable.");
+            psi.ArgumentList.Add("x");
+            psi.ArgumentList.Add("-tiso");
+            psi.ArgumentList.Add(isoPath);
+            psi.ArgumentList.Add($"dists/{suite}/*");
+            psi.ArgumentList.Add("pool/*");
+            psi.ArgumentList.Add("-r");
+            psi.ArgumentList.Add($"-o{destinationDirectory}");
+            psi.ArgumentList.Add("-y");
+        }
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        using var proc = Process.Start(psi)
+            ?? throw new IsoExtractException("Failed to start the ISO repository archive extractor.");
+        var stdoutDrain = proc.StandardOutput.BaseStream.CopyToAsync(Stream.Null, linked.Token);
+        var stderrTask = proc.StandardError.ReadToEndAsync(linked.Token);
+        try
+        {
+            await proc.WaitForExitAsync(linked.Token);
+            await stdoutDrain;
+            var stderr = await stderrTask;
+            if (proc.ExitCode != 0)
+                throw new IsoExtractException($"7-zip exited with code {proc.ExitCode}: {stderr}");
+        }
+        catch (OperationCanceledException)
+        {
+            if (!proc.HasExited)
+                proc.Kill(entireProcessTree: true);
+            throw;
+        }
+    }
 
     /// <summary>
     /// Extracts all required boot files from the ISO to the staging directories.
@@ -70,7 +305,7 @@ public static class IsoExtractService
         if (!extracted)
         {
             bool useWsl = CanUseWsl();
-            extractionBackend = useWsl ? "WSL 7-zip" : "7za.exe";
+            extractionBackend = useWsl ? "WSL 7-zip" : "Windows 7-Zip";
             await ExtractViaArchiveAsync(distro, isoPath, bootStagingDir, efiStagingDir, useWsl, progress, ct);
         }
 
@@ -203,6 +438,82 @@ public static class IsoExtractService
         var sizeMb = new FileInfo(squashfsDest).Length / (1024 * 1024);
         progress.Report(new ProgressUpdate(5, 10, "Extracting Boot Files", 45,
             $"[Extract] ✓ LiveOS/squashfs.img extracted ({sizeMb} MB) — dracut live root filesystem ready"));
+    }
+
+    /// <summary>
+    /// Extracts Casper live filesystem images (*.squashfs) and release info (.disk/info)
+    /// for Ubuntu, Linux Mint, and Zorin OS live installers.
+    /// Without these files present on the ESP, Casper halts with
+    /// "Unable to find a medium containing a live file system".
+    /// </summary>
+    public static async Task ExtractCasperFilesAsync(
+        string isoPath,
+        string bootStagingDir,
+        IProgress<ProgressUpdate> progress,
+        CancellationToken ct = default)
+    {
+        var casperDestDir = Path.Combine(bootStagingDir, "casper");
+        var diskDestDir = Path.Combine(bootStagingDir, ".disk");
+        Directory.CreateDirectory(casperDestDir);
+        Directory.CreateDirectory(diskDestDir);
+
+        progress.Report(new ProgressUpdate(5, 10, "Extracting Casper Live Files", 44,
+            "[Extract] Extracting Casper squashfs filesystem images and release info..."));
+
+        char? driveLetter = null;
+        try
+        {
+            driveLetter = await MountIsoAsync(isoPath, ct);
+            if (driveLetter != null)
+            {
+                var isoRoot = $"{driveLetter.Value}:\\";
+                var isoCasper = Path.Combine(isoRoot, "casper");
+                if (Directory.Exists(isoCasper))
+                {
+                    foreach (var file in Directory.GetFiles(isoCasper, "*.*"))
+                    {
+                        var fileName = Path.GetFileName(file);
+                        if (fileName.EndsWith(".squashfs", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".size", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var destFile = Path.Combine(casperDestDir, fileName);
+                            FileUtilities.SafeCopy(file, destFile);
+                        }
+                    }
+                }
+
+                var isoDisk = Path.Combine(isoRoot, ".disk");
+                if (Directory.Exists(isoDisk))
+                {
+                    foreach (var file in Directory.GetFiles(isoDisk, "*.*"))
+                    {
+                        FileUtilities.SafeCopy(file, Path.Combine(diskDestDir, Path.GetFileName(file)));
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (driveLetter != null)
+            {
+                await DismountIsoAsync(isoPath, ct);
+            }
+        }
+
+        // Verify that at least one root filesystem squashfs image was extracted
+        var squashfsCount = Directory.GetFiles(casperDestDir, "*.squashfs").Length;
+        if (squashfsCount == 0)
+        {
+            throw new IsoExtractException(
+                "Could not extract any Casper squashfs root filesystem images from the ISO. " +
+                "Without these files, Casper halts with 'Unable to find a medium containing a live file system'. " +
+                "Ensure the ISO is a valid desktop/server live image containing a /casper directory.");
+        }
+
+        progress.Report(new ProgressUpdate(5, 10, "Casper Files Extracted", 45,
+            $"[Extract] ✓ Casper live filesystem ({squashfsCount} squashfs image(s)) and .disk info staged for ESP population"));
     }
 
     private static async Task<bool> TryExtractViaMountAsync(
@@ -523,13 +834,13 @@ public static class IsoExtractService
     {
         var sevenZipExe = ResolveSevenZipExe()
             ?? throw new IsoExtractException(
-                "7za.exe not found in application directory, tools directory, or project root. " +
-                "Please ensure tools\\7za.exe is present, or install WSL.");
+                "ISO-capable 7z.exe not found in application tools or the standard 7-Zip installation directory. " +
+                "Use full 7-Zip (7z.exe and 7z.dll) or WSL with 7z; standalone 7za.exe cannot read ISO media.");
 
         var psi = new ProcessStartInfo
         {
             FileName = sevenZipExe,
-            Arguments = $"e \"{isoPath}\" -o\"{destDir}\" \"{isoInternalPath}\" -y",
+            Arguments = $"e -tiso \"{isoPath}\" -o\"{destDir}\" \"{isoInternalPath}\" -y",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -538,13 +849,13 @@ public static class IsoExtractService
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, cts.Token);
-        using var proc = Process.Start(psi) ?? throw new IsoExtractException("Failed to start 7za.exe");
+        using var proc = Process.Start(psi) ?? throw new IsoExtractException("Failed to start 7z.exe");
 
         await proc.WaitForExitAsync(linked.Token);
         if (proc.ExitCode != 0)
         {
             var err = await proc.StandardError.ReadToEndAsync(linked.Token);
-            throw new IsoExtractException($"7za.exe exited with code {proc.ExitCode}: {err}");
+            throw new IsoExtractException($"7z.exe exited with code {proc.ExitCode}: {err}");
         }
     }
 
@@ -557,7 +868,7 @@ public static class IsoExtractService
         var psi = new ProcessStartInfo
         {
             FileName = "wsl.exe",
-            Arguments = $"-- 7z e \"{wslIsoPath}\" -o\"{wslDestDir}\" \"{isoInternalPath}\" -y",
+            Arguments = $"-- 7z e -tiso \"{wslIsoPath}\" -o\"{wslDestDir}\" \"{isoInternalPath}\" -y",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -611,12 +922,14 @@ public static class IsoExtractService
     {
         var candidates = new[]
         {
-            Path.Combine(AppContext.BaseDirectory, "tools", "7za.exe"),
-            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "7za.exe"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Win2Linux.UI", "tools", "7za.exe"),
-            Path.Combine(Environment.CurrentDirectory, "src", "Win2Linux.UI", "tools", "7za.exe"),
-            Path.Combine(Environment.CurrentDirectory, "tools", "7za.exe")
+            Path.Combine(AppContext.BaseDirectory, "tools", "7z.exe"),
+            Path.Combine(AppContext.BaseDirectory, "7z.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "tools", "7z.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "src", "Win2Linux.UI", "tools", "7z.exe"),
+            Path.Combine(Environment.CurrentDirectory, "src", "Win2Linux.UI", "tools", "7z.exe"),
+            Path.Combine(Environment.CurrentDirectory, "tools", "7z.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "7-Zip", "7z.exe")
         };
 
         foreach (var c in candidates)

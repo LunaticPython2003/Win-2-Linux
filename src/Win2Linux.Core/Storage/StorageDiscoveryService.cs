@@ -32,7 +32,7 @@ public class StorageDiscoveryService
             scope.Connect();
 
             // Query Partitions
-            using (var partSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT DiskNumber, PartitionNumber, DriveLetter, Size, GptType, Guid FROM MSFT_Partition")))
+            using (var partSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT DiskNumber, PartitionNumber, DriveLetter, Size, GptType, Guid, Offset FROM MSFT_Partition")))
             using (var partCollection = partSearcher.Get())
             {
                 foreach (ManagementObject p in partCollection)
@@ -47,22 +47,30 @@ public class StorageDiscoveryService
                         else driveLetter = null;
                     }
                     ulong size = Convert.ToUInt64(p["Size"] ?? 0);
+                    ulong? offset = p["Offset"] is null ? null : Convert.ToUInt64(p["Offset"]);
                     string? gptType = p["GptType"]?.ToString()?.Trim('{', '}');
                     string? guid = p["Guid"]?.ToString()?.Trim('{', '}');
 
-                    partitions.Add(new PartitionInfo(diskNo, partNo, driveLetter, size, gptType, guid));
+                    partitions.Add(new PartitionInfo(diskNo, partNo, driveLetter, size, gptType, guid, offset));
                 }
             }
 
             // Query Disks
-            using (var diskSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Number, FriendlyName, SerialNumber, BusType, PartitionStyle, Guid, Size FROM MSFT_Disk")))
+            using (var diskSearcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT Number, FriendlyName, SerialNumber, AdapterSerialNumber, BusType, PartitionStyle, Guid, Size FROM MSFT_Disk")))
             using (var diskCollection = diskSearcher.Get())
             {
                 foreach (ManagementObject d in diskCollection)
                 {
                     int number = Convert.ToInt32(d["Number"] ?? 0);
                     string friendlyName = d["FriendlyName"]?.ToString() ?? $"Disk {number}";
-                    string serialNumber = d["SerialNumber"]?.ToString()?.Trim() ?? "";
+                    
+                    string adapterSerial = d["AdapterSerialNumber"]?.ToString()?.Trim() ?? "";
+                    if (!string.IsNullOrEmpty(adapterSerial))
+                    {
+                        adapterSerial = adapterSerial.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                    }
+                    string serialNumber = !string.IsNullOrEmpty(adapterSerial) ? adapterSerial : (d["SerialNumber"]?.ToString()?.Trim() ?? "");
+
                     string diskGuid = d["Guid"]?.ToString()?.Trim('{', '}') ?? "";
                     ulong size = Convert.ToUInt64(d["Size"] ?? 0);
 
@@ -90,7 +98,8 @@ public class StorageDiscoveryService
                     disks.Add(new PhysicalDiskInfo(
                         DiskNumber: number,
                         FriendlyName: friendlyName,
-                        SerialNumber: serialNumber,
+                        WindowsSerialNumber: d["SerialNumber"]?.ToString()?.Trim() ?? "",
+                        LinuxSerialNumber: serialNumber,
                         BusType: busType,
                         PartitionStyle: partitionStyle,
                         Guid: diskGuid,
@@ -127,7 +136,7 @@ public class StorageDiscoveryService
         var protectedSystemDisk = new ProtectedSystemDisk(
             DiskNumber: systemDiskNumber,
             DiskGuid: systemDisk?.Guid ?? "",
-            DiskSerial: systemDisk?.SerialNumber ?? "",
+            WindowsDiskSerial: systemDisk?.WindowsSerialNumber ?? "",
             SystemVolume: $"{systemLetter}:",
             Status: "PROTECTED_SYSTEM_DISK - CANNOT BE MODIFIED"
         );
@@ -174,7 +183,8 @@ public class StorageDiscoveryService
 
             var disk = disks.FirstOrDefault(d => d.DiskNumber == vol.DiskNumber);
             var diskGuid = disk?.Guid ?? "";
-            var diskSerial = disk?.SerialNumber ?? "";
+            var diskWindowsSerial = disk?.WindowsSerialNumber ?? "";
+            var diskLinuxSerial = disk?.LinuxSerialNumber ?? "";
 
             ulong maxShrink = vol.FreeBytes > safetyBufferBytes ? vol.FreeBytes - safetyBufferBytes : 0;
             bool hasSpace = maxShrink >= minLinuxBytes;
@@ -189,14 +199,16 @@ public class StorageDiscoveryService
             candidateTargets.Add(new CandidateTarget(
                 DiskNumber: vol.DiskNumber,
                 DiskGuid: diskGuid,
-                DiskSerial: diskSerial,
+                WindowsDiskSerial: diskWindowsSerial,
+                LinuxDiskSerial: diskLinuxSerial,
                 DriveLetter: vol.DriveLetter,
                 VolumeLabel: vol.Label,
                 TotalBytes: vol.TotalBytes,
                 FreeBytes: vol.FreeBytes,
                 MaxShrinkBytes: maxShrink,
                 IsEligible: isEligible,
-                EligibilityReason: reason
+                EligibilityReason: reason,
+                Partitions: disk?.Partitions ?? new List<PartitionInfo>()
             ));
         }
 

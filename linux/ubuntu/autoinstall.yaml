@@ -1,6 +1,11 @@
 #cloud-config
 autoinstall:
   version: 1
+  oem:
+    install: false
+  drivers:
+    install: false
+  updates: all
   locale: en_US.UTF-8
   keyboard:
     layout: us

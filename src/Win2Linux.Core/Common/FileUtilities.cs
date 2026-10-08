@@ -10,6 +10,9 @@ public static class FileUtilities
     /// </summary>
     public static void SafeCopy(string sourcePath, string destinationPath)
     {
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destinationPath), StringComparison.OrdinalIgnoreCase))
+            return;
+
         var destDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(destDir))
         {
@@ -31,6 +34,49 @@ public static class FileUtilities
         }
 
         File.Copy(sourcePath, destinationPath, overwrite: true);
+
+        // Files copied from optical ISO images retain the ReadOnly attribute — remove it.
+        try
+        {
+            var newAttrs = File.GetAttributes(destinationPath);
+            if ((newAttrs & FileAttributes.ReadOnly) != 0)
+            {
+                File.SetAttributes(destinationPath, newAttrs & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Safely moves a file to destination, clearing any ReadOnly attributes.
+    /// This is an O(1) operation on the same volume (e.g. within the ESP).
+    /// </summary>
+    public static void SafeMove(string sourcePath, string destinationPath)
+    {
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destinationPath), StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var destDir = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(destDir))
+        {
+            Directory.CreateDirectory(destDir);
+        }
+
+        if (File.Exists(destinationPath))
+        {
+            try
+            {
+                var existingAttrs = File.GetAttributes(destinationPath);
+                if ((existingAttrs & FileAttributes.ReadOnly) != 0)
+                {
+                    File.SetAttributes(destinationPath, existingAttrs & ~FileAttributes.ReadOnly);
+                }
+                File.Delete(destinationPath);
+            }
+            catch { }
+        }
+
+        File.Move(sourcePath, destinationPath);
 
         // Files copied from optical ISO images retain the ReadOnly attribute — remove it.
         try

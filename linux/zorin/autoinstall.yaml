@@ -23,6 +23,8 @@ autoinstall:
     - os-prober
     - ntfs-3g
   late-commands:
-    # Ensure os-prober detects Windows Boot Manager
-    - curtin in-target --target=/target -- sed -i 's/#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
-    - curtin in-target --target=/target -- update-grub
+    # Regenerate GRUB menu. os-prober may fail on BitLocker-protected
+    # Windows volumes; failure is non-fatal because Windows Boot Manager
+    # remains independently available through UEFI firmware.
+    - curtin in-target --target=/target -- bash -c "sed -i 's/^#\?GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub || true"
+    - curtin in-target --target=/target -- bash -c "if ! update-grub; then echo 'Win2Linux - update-grub failed; continuing because UEFI Windows Boot Manager is preserved.'; fi"

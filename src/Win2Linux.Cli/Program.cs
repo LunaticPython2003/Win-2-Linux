@@ -3,6 +3,8 @@ using Win2Linux.Core.Distros;
 using Win2Linux.Core.Storage;
 
 using Win2Linux.Core.Orchestrator;
+using Win2Linux.Core.Boot;
+using Win2Linux.Core.Models;
 
 namespace Win2Linux.Cli;
 
@@ -10,6 +12,27 @@ class Program
 {
     static void Main(string[] args)
     {
+        // File-only export for boot repair; this does not discover or modify disks.
+        if (args.Length > 0 && args[0] == "export-grub")
+        {
+            if (args.Length is < 3 or > 4)
+            {
+                Console.Error.WriteLine("Usage: export-grub <distro-id> <output-path> [extra-kernel-args]");
+                Environment.ExitCode = 1;
+                return;
+            }
+            var profile = DistroRegistry.SupportedDistributions.SingleOrDefault(d => d.Id == args[1]);
+            if (profile == null)
+            {
+                Console.Error.WriteLine("Unknown distribution: " + args[1]);
+                Environment.ExitCode = 1;
+                return;
+            }
+            var config = args.Length == 4 ? new LinuxSetupConfiguration(CustomKernelArgs: args[3]) : null;
+            File.WriteAllText(args[2], EspPopulationService.GenerateInstallerGrubConfig(profile, config).Replace("\r\n", "\n"));
+            return;
+        }
+
         bool jsonMode = args.Contains("--json");
         bool distrosMode = args.Contains("distros") || args.Contains("--distros");
         bool stageMode = args.Contains("stage") || args.Contains("--stage");
@@ -104,7 +127,7 @@ class Program
         Console.WriteLine("PROTECTED WINDOWS SYSTEM DISK (NON-MODIFIABLE):");
         Console.WriteLine($"  Disk Number:     Disk {report.ProtectedSystemDisk.DiskNumber}");
         Console.WriteLine($"  System Volume:   {report.ProtectedSystemDisk.SystemVolume}");
-        Console.WriteLine($"  Disk Serial:     {report.ProtectedSystemDisk.DiskSerial}");
+        Console.WriteLine($"  Disk Serial:     {report.ProtectedSystemDisk.WindowsDiskSerial}");
         Console.WriteLine($"  Disk GUID:       {report.ProtectedSystemDisk.DiskGuid}");
         Console.WriteLine($"  Status:          🔒 {report.ProtectedSystemDisk.Status}");
         Console.WriteLine();
@@ -138,7 +161,7 @@ class Program
             var lockTag = d.IsSystemDisk ? "🔒 [PROTECTED_SYSTEM_DISK]" : "✓ [SECONDARY_DISK]";
             var sizeGb = d.TotalBytes / (1024 * 1024 * 1024);
             Console.WriteLine($"  Disk {d.DiskNumber}: {d.FriendlyName} ({sizeGb} GB, {d.BusType}) {lockTag}");
-            Console.WriteLine($"    Serial:        {d.SerialNumber}");
+            Console.WriteLine($"    Serial:        {d.WindowsSerialNumber}");
             if (!string.IsNullOrEmpty(d.Guid))
                 Console.WriteLine($"    GPT GUID:      {d.Guid}");
             Console.WriteLine($"    Volumes:       {string.Join(", ", d.Volumes)}");

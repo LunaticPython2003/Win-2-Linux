@@ -96,7 +96,7 @@
                             Tapped="SelectDistro_Tapped" Tag="ubuntu">
                         <StackPanel Spacing="8">
                             <Grid>
-                                <TextBlock Text="Ubuntu 26.04 LTS" FontWeight="Bold" FontSize="15" />
+                                <TextBlock Text="Ubuntu 26.04.1 LTS" FontWeight="Bold" FontSize="15" />
                                 <Border Background="#E95420" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
                                     <TextBlock Text="LTS" Foreground="White" FontSize="11" FontWeight="Bold" />
                                 </Border>
@@ -438,6 +438,26 @@
                         </StackPanel>
                     </Grid>
 
+                    <Border x:Name="PanelWifiConfig" Background="#202020" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="6" Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Wi-Fi for Ubuntu installation" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            <TextBlock Text="Choose a saved Windows network. Win2Linux reads its key only after you select it; the key is sent to Ubuntu in the installer network config." FontSize="11" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <TextBlock Text="The password is written in plain text to the ESP installer YAML until first-boot cleanup removes it. Ubuntu keeps it in Netplan so Wi-Fi reconnects." FontSize="10" Foreground="#888888" TextWrapping="Wrap" />
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="CmbWifiProfile" Header="Saved Wi-Fi network" SelectionChanged="WifiProfile_SelectionChanged">
+                                    <ComboBoxItem Content="Do not configure Wi-Fi" />
+                                </ComboBox>
+                                <Button x:Name="BtnRefreshWifi" Grid.Column="1" Content="Refresh" VerticalAlignment="Bottom" Click="RefreshWifiProfiles_Click" />
+                            </Grid>
+                            <Button x:Name="BtnUpdateExistingWifi" Content="Update Wi-Fi on Existing Ubuntu Installer" HorizontalAlignment="Left" IsEnabled="False" Click="UpdateExistingWifi_Click" />
+                            <TextBlock x:Name="TxtWifiStatus" Text="Wi-Fi is optional. Ethernet works without this setting." FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Divider -->
                     <Border Height="1" Background="#333333" Margin="0,4" />
 
@@ -498,7 +518,7 @@
                             <ComboBoxItem Content="Linux LTS (Long-Term Support — Maximum Stability)" Tag="linux-lts" />
                         </ComboBox>
 
-                        <TextBlock Text="ℹ️ Selecting Linux 7.3 applies the Cirrus Logic CS35L41 dual-amplifier ACPI routing fixes for Lenovo Legion laptop speakers, resolving the silent speaker bug and enabling full quad-speaker sound." 
+                        <TextBlock Text="Linux 7.3 uses Ubuntu's mainline build and requires an internet connection and Secure Boot turned off. Until a stable build is published, the installer may use a release candidate. Secure Boot is checked before partitioning; Ubuntu's default kernel remains as a fallback. Legion CS35L41 speaker routing settings are applied." 
                                    FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
                     </StackPanel>
 

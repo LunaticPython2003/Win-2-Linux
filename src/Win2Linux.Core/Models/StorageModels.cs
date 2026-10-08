@@ -8,7 +8,8 @@ public record PartitionInfo(
     string? DriveLetter,
     ulong SizeBytes,
     string? GptType,
-    string? Guid
+    string? Guid,
+    ulong? OffsetBytes = null
 );
 
 public record VolumeInfo(
@@ -25,7 +26,8 @@ public record VolumeInfo(
 public record PhysicalDiskInfo(
     int DiskNumber,
     string FriendlyName,
-    string SerialNumber,
+    string WindowsSerialNumber,
+    string LinuxSerialNumber,
     string BusType,
     string PartitionStyle,
     string? Guid,
@@ -38,7 +40,7 @@ public record PhysicalDiskInfo(
 public record ProtectedSystemDisk(
     int DiskNumber,
     string DiskGuid,
-    string DiskSerial,
+    string WindowsDiskSerial,
     string SystemVolume,
     string Status = "PROTECTED_SYSTEM_DISK - CANNOT BE MODIFIED"
 );
@@ -46,14 +48,16 @@ public record ProtectedSystemDisk(
 public record CandidateTarget(
     int DiskNumber,
     string DiskGuid,
-    string DiskSerial,
+    string WindowsDiskSerial,
+    string LinuxDiskSerial,
     string DriveLetter,
     string VolumeLabel,
     ulong TotalBytes,
     ulong FreeBytes,
     ulong MaxShrinkBytes,
     bool IsEligible,
-    string EligibilityReason
+    string EligibilityReason,
+    List<PartitionInfo> Partitions
 );
 
 public record FirmwareInfo(

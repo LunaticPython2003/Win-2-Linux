@@ -215,6 +215,7 @@ impl StorageDiscovery {
                 max_shrink_bytes: max_shrink,
                 is_eligible,
                 eligibility_reason,
+                partitions: disk.map(|d| d.partitions.clone()).unwrap_or_default(),
             });
         }
 

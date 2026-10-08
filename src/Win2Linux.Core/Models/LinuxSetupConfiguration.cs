@@ -21,9 +21,12 @@ public record LinuxSetupConfiguration(
     bool InstallProprietaryCodecs = true,
     string KernelSelection = "linux-default",
     string? DetectedGpu = null,
-    string? DetectedHardwareModel = null
+    string? DetectedHardwareModel = null,
+    WifiNetworkConfiguration? WifiNetwork = null
 )
 {
+    public static string NormalizeHostname(string hostname) => hostname.Trim().ToLowerInvariant();
+
     /// <summary>
     /// Gets a default instance configured with the current system environment, detecting GPU and computer hardware.
     /// </summary>
@@ -44,7 +47,7 @@ public record LinuxSetupConfiguration(
             }
         }
 
-        var hostname = $"{distroId}-dualboot";
+        var hostname = NormalizeHostname($"{distroId}-dualboot");
 
         // Attempt to detect current Windows timezone id and map to standard IANA timezone
         var localZone = TimeZoneInfo.Local;
@@ -133,4 +136,13 @@ public record LinuxSetupConfiguration(
             DetectedHardwareModel: detectedModel
         );
     }
+}
+
+/// <summary>
+/// A saved Wi-Fi network selected for Ubuntu installation. The password is held only
+/// in memory while generating the installer configuration and is not part of app state.
+/// </summary>
+public sealed record WifiNetworkConfiguration(string Ssid, string? Password, bool IsOpenNetwork)
+{
+    public override string ToString() => $"WifiNetworkConfiguration {{ Ssid = {Ssid}, IsOpenNetwork = {IsOpenNetwork} }}";
 }

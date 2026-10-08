@@ -63,6 +63,7 @@ pub struct CandidateTarget {
     pub max_shrink_bytes: u64,
     pub is_eligible: bool,
     pub eligibility_reason: String,
+    pub partitions: Vec<PartitionInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

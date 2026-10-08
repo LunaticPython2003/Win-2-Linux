@@ -80,6 +80,8 @@ public class DistroTests
             {
                 Assert.Contains("toram", d.AutoinstallKernelArgs);
                 Assert.Contains("toram", d.GetInteractiveKernelArgs());
+                Assert.Contains("ignore_uuid", d.AutoinstallKernelArgs);
+                Assert.Contains("ignore_uuid", d.GetInteractiveKernelArgs());
             }
         }
     }

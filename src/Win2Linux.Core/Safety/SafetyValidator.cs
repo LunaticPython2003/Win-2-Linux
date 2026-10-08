@@ -28,10 +28,10 @@ public static class SafetyValidator
         }
 
         if (!string.IsNullOrWhiteSpace(targetDiskSerial) &&
-            targetDiskSerial.Trim().Equals(protectedDisk.DiskSerial.Trim(), StringComparison.OrdinalIgnoreCase))
+            targetDiskSerial.Trim().Equals(protectedDisk.WindowsDiskSerial.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"CRITICAL SAFETY VIOLATION: Target disk serial '{targetDiskSerial}' matches the protected Windows system disk serial '{protectedDisk.DiskSerial}'. Operation ABORTED.");
+                $"CRITICAL SAFETY VIOLATION: Target disk serial '{targetDiskSerial}' matches the protected Windows system disk serial '{protectedDisk.WindowsDiskSerial}'. Operation ABORTED.");
         }
     }
 

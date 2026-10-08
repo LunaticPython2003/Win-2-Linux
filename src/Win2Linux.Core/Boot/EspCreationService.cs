@@ -8,7 +8,9 @@ using Win2Linux.Core.Safety;
 namespace Win2Linux.Core.Boot;
 
 /// <summary>
-/// Creates a 4096 MB FAT32 EFI System Partition from unallocated space on the secondary disk.
+/// Creates a 8192 MB FAT32 EFI System Partition from unallocated space on the secondary disk.
+/// The remainder of the shrunk volume is strictly left as unallocated free space so Linux installers
+/// (Fedora Anaconda, Ubuntu Subiquity/Ubiquity) can perform automatic or guided partitioning.
 ///
 /// Safety: The protected system disk is triple-checked (number, GUID, serial) before and during
 /// every diskpart invocation. Any mismatch immediately aborts with an exception.
@@ -23,12 +25,14 @@ public static class EspCreationService
         int PartitionNumber,
         string PartitionGuid,
         char DriveLetter,
-        ulong SizeBytes
+        ulong SizeBytes,
+        ulong? OffsetBytes = null
     );
 
     /// <summary>
-    /// Creates a new 4096 MB FAT32 ESP in the unallocated space of the secondary disk.
-    /// Returns a description of the created partition for state.json persistence.
+    /// Creates a new 8192 MB FAT32 ESP in the unallocated space of the secondary disk.
+    /// Cleans up any previous staging partitions (including old ESP or raw partition) beforehand.
+    /// Leaves the rest of the target space as true unallocated space for Linux installers.
     /// </summary>
     public static async Task<EspCreationResult> CreateEspAsync(
         InstallationPlan plan,
@@ -40,87 +44,107 @@ public static class EspCreationService
         SafetyValidator.AssertNotProtectedSystemDisk(
             plan.Target.DiskNumber,
             plan.Target.DiskGuid,
-            plan.Target.DiskSerial,
+            plan.Target.WindowsDiskSerial,
             protectedDisk);
 
-        progress.Report(new ProgressUpdate(8, 10, "Creating EFI Boot Partition", 68,
+        progress.Report(new ProgressUpdate(8, 9, "Creating EFI Boot Partition", 68,
             $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
-            $"Creating 4096 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
+            $"Preparing 8192 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
 
         // Pick a free temp drive letter
-        char tempLetter = FindFreeDriveLetter();
+        char tempLetter = await FindFreeDriveLetterAsync(ct);
 
-        // Check if an ESP partition already exists on the target secondary disk (e.g. from previous run)
-        var (existingPartNo, _, _) = await FindEspPartitionAsync(plan.Target.DiskNumber, ct);
-
+        // Check if previous dual-boot staging partitions exist on the target secondary disk
+        // ONLY delete if we can strictly identify it as our ESP (ESP GptType + LINUXEFI label).
+        var existingPartNo = await FindWin2LinuxEspAsync(plan.Target.DiskNumber, ct);
+        
         if (existingPartNo > 0)
         {
-            progress.Report(new ProgressUpdate(8, 10, "Deleting Previous ESP Partition", 67,
+            progress.Report(new ProgressUpdate(8, 9, "Cleaning Previous Dual-Boot Partitions", 67,
                 $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
-                $"Existing ESP partition {existingPartNo} found on Disk {plan.Target.DiskNumber}. Deleting previous ESP to ensure clean deployment..."));
+                $"Found existing ESP partition on Disk {plan.Target.DiskNumber}. " +
+                "Cleaning up to ensure pristine unallocated space..."));
 
-            var deleteScript = $"""
-                select disk {plan.Target.DiskNumber}
-                select partition {existingPartNo}
-                delete partition override
-                exit
-                """;
-
-            await RunDiskpartScriptAsync(deleteScript, ct);
-            await Task.Delay(1000, ct);
+            // Use a single PowerShell pipeline to re-verify the partition GUID immediately before deletion,
+            // preventing race conditions where partition numbers might shift.
+            var psDelete = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -Command \"Get-Partition -DiskNumber {plan.Target.DiskNumber} -PartitionNumber {existingPartNo} | Where-Object {{ $_.GptType -match '{EspGptTypeGuid}' }} | Remove-Partition -Confirm:$false\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psDelete);
+            if (proc != null) await proc.WaitForExitAsync(ct);
         }
 
-        progress.Report(new ProgressUpdate(8, 10, "Creating EFI Boot Partition", 68,
+        progress.Report(new ProgressUpdate(8, 9, "Creating EFI Boot Partition", 68,
             $"[ESP Creation] Safety confirmed: Disk {protectedDisk.DiskNumber} is protected. " +
-            $"Creating 4096 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
+            $"Creating 8192 MB FAT32 ESP on Disk {plan.Target.DiskNumber}..."));
 
         var script = $"""
             select disk {plan.Target.DiskNumber}
-            create partition efi size=4096
+            create partition efi size=8192
             format fs=fat32 quick label="LINUXEFI"
-            assign letter={tempLetter}
-            create partition primary
-            set id=0fc63daf-8483-4772-8e79-3d69d8477de4
             exit
             """;
 
-        progress.Report(new ProgressUpdate(8, 10, "Formatting EFI Boot Partition", 70,
+        progress.Report(new ProgressUpdate(8, 9, "Formatting EFI Boot Partition", 70,
             $"[ESP Creation] Running diskpart on Disk {plan.Target.DiskNumber} (temp letter: {tempLetter}:)..."));
 
         await RunDiskpartScriptAsync(script, ct);
 
-        // Give the OS a moment to register the new volume
-        for (int i = 0; i < 10; i++)
+        // DiskPart can return before the Storage Management provider has refreshed its view.
+        // Retry the authoritative disk/partition query instead of treating that propagation
+        // window as a failed creation.
+        var (partNumber, partGuid, partSize, partOffset) = (-1, "", 0UL, 0UL);
+        for (int attempt = 0; attempt < 30 && partNumber < 0; attempt++)
         {
-            if (Directory.Exists($"{tempLetter}:\\")) break;
+            await RefreshStorageCacheAsync(ct);
+            (partNumber, partGuid, partSize, partOffset) = await FindCreatedEspAsync(plan.Target.DiskNumber, 8192UL * 1024 * 1024, ct);
+            if (partNumber >= 0) break;
             await Task.Delay(500, ct);
         }
-
-        // === POST-CREATION VERIFICATION ===
-        var (partNumber, partGuid, partSize) = await FindEspPartitionAsync(plan.Target.DiskNumber, ct);
 
         if (partNumber < 0)
         {
             throw new EspCreationException(
                 $"ESP creation verification failed: could not find an EFI partition on Disk {plan.Target.DiskNumber} " +
-                $"after diskpart completed.");
+                $"with a verified partition GUID and byte offset after diskpart completed.");
         }
 
-        progress.Report(new ProgressUpdate(8, 10, "EFI Partition Ready", 73,
+        // Some Windows builds create the ESP successfully but discard the drive-letter
+        // assignment while the Storage provider refreshes. Reassign it from the verified
+        // partition identity before handing the mount path to the population service.
+        await AssignEspDriveLetterAsync(plan.Target.DiskNumber, partNumber, tempLetter, ct);
+        for (int attempt = 0; attempt < 20 && !Directory.Exists($"{tempLetter}:\\"); attempt++)
+        {
+            await RefreshStorageCacheAsync(ct);
+            await Task.Delay(500, ct);
+        }
+
+        if (!Directory.Exists($"{tempLetter}:\\"))
+        {
+            throw new EspCreationException(
+                $"EFI partition {partNumber} was created on Disk {plan.Target.DiskNumber}, but Windows did not mount it at {tempLetter}:. Refusing to stage boot files.");
+        }
+
+        progress.Report(new ProgressUpdate(8, 9, "EFI Partition Ready", 73,
             $"[ESP Creation] ✓ FAT32 ESP ready: Disk {plan.Target.DiskNumber} Partition {partNumber} " +
-            $"({partSize / (1024 * 1024)} MB) at {tempLetter}:\\. Linux root partition provisioned (type 0fc63daf)."));
+            $"({partSize / (1024 * 1024)} MB) at {tempLetter}:\\. Remaining target disk space preserved as unallocated free space."));
 
         return new EspCreationResult(
             DiskNumber: plan.Target.DiskNumber,
             PartitionNumber: partNumber,
             PartitionGuid: partGuid,
             DriveLetter: tempLetter,
-            SizeBytes: partSize
+            SizeBytes: partSize,
+            OffsetBytes: partOffset
         );
     }
 
     /// <summary>
-    /// Deletes the EFI System Partition and dedicated Linux partition from the secondary target disk and extends the adjacent Windows volume to reclaim space.
+    /// Deletes the EFI System Partition and any trailing partitions from the secondary target disk and extends the adjacent Windows volume to reclaim space.
     /// Hard assertion: strictly prevents modifying the protected Windows system disk.
     /// </summary>
     public static async Task<bool> DeleteEspAndExtendVolumeAsync(
@@ -135,65 +159,33 @@ public static class EspCreationService
                 $"CRITICAL SAFETY ABORT: Refusing to delete partitions on protected Windows system disk {protectedDiskNumber}.");
         }
 
-        var (existingPartNo, _, _) = await FindEspPartitionAsync(targetDiskNumber, ct);
-        if (existingPartNo <= 0)
+        var existingPartNo = await FindWin2LinuxEspAsync(targetDiskNumber, ct);
+        if (existingPartNo < 0)
         {
             return false;
         }
 
-        var partitionsToDelete = await FindTrailingPartitionsAsync(targetDiskNumber, existingPartNo, ct);
-        if (partitionsToDelete.Count == 0)
+        // Use an atomic PowerShell pipeline to re-verify the partition GUID and delete it
+        var psDelete = new ProcessStartInfo
         {
-            partitionsToDelete.Add(existingPartNo);
-        }
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -Command \"Get-Partition -DiskNumber {targetDiskNumber} -PartitionNumber {existingPartNo} | Where-Object {{ $_.GptType -match '{EspGptTypeGuid}' }} | Remove-Partition -Confirm:$false\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var proc = Process.Start(psDelete);
+        if (proc != null) await proc.WaitForExitAsync(ct);
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"select disk {targetDiskNumber}");
-        foreach (var p in partitionsToDelete)
-        {
-            sb.AppendLine($"select partition {p}");
-            sb.AppendLine("delete partition override");
-        }
         if (!string.IsNullOrWhiteSpace(driveLetter))
         {
+            // Now use diskpart just to extend the volume if a drive letter is provided
             var cleanLetter = driveLetter.TrimEnd('\\', ':');
+            var sb = new System.Text.StringBuilder();
             sb.AppendLine($"select volume {cleanLetter}");
             sb.AppendLine("extend");
+            await RunDiskpartScriptAsync(sb.ToString(), ct);
         }
-        sb.AppendLine("exit");
-
-        await RunDiskpartScriptAsync(sb.ToString(), ct);
         return true;
-    }
-
-    private static async Task<List<int>> FindTrailingPartitionsAsync(
-        int diskNumber, int minPartNumber, CancellationToken ct)
-    {
-        return await Task.Run(() =>
-        {
-            var list = new List<int>();
-            try
-            {
-                var scope = new ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
-                scope.Connect();
-
-                using var searcher = new ManagementObjectSearcher(scope,
-                    new ObjectQuery($"SELECT PartitionNumber FROM MSFT_Partition WHERE DiskNumber = {diskNumber}"));
-                using var collection = searcher.Get();
-
-                foreach (ManagementObject p in collection)
-                {
-                    int partNo = Convert.ToInt32(p["PartitionNumber"] ?? 0);
-                    if (partNo >= minPartNumber)
-                    {
-                        list.Add(partNo);
-                    }
-                }
-            }
-            catch { }
-
-            return list.OrderByDescending(x => x).ToList();
-        }, ct);
     }
 
     /// <summary>
@@ -261,55 +253,125 @@ public static class EspCreationService
         }
     }
 
-    private static async Task<(int PartNumber, string PartGuid, ulong PartSize)> FindEspPartitionAsync(
-        int diskNumber, CancellationToken ct)
+    private static async Task<int> FindWin2LinuxEspAsync(int diskNumber, CancellationToken ct)
     {
-        for (int attempt = 0; attempt < 5; attempt++)
+        var expectedSizeBytes = 8192UL * 1024 * 1024;
+        var script = $"Get-Partition -DiskNumber {diskNumber} | Where-Object {{ $_.GptType -match '{EspGptTypeGuid}' -and $_.Size -eq {expectedSizeBytes} }} | Select-Object -First 1 -ExpandProperty PartitionNumber";
+        var psi = new ProcessStartInfo
         {
-            if (attempt > 0)
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -Command \"{script}\"",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        try
+        {
+            using var proc = Process.Start(psi);
+            if (proc != null)
             {
-                await Task.Delay(1000, ct);
-            }
-
-            try
-            {
-                var scope = new ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
-                scope.Connect();
-
-                using var searcher = new ManagementObjectSearcher(scope,
-                    new ObjectQuery($"SELECT PartitionNumber, Guid, Size, GptType FROM MSFT_Partition " +
-                                    $"WHERE DiskNumber = {diskNumber}"));
-                using var collection = searcher.Get();
-
-                foreach (ManagementObject p in collection)
+                var output = await proc.StandardOutput.ReadToEndAsync(ct);
+                await proc.WaitForExitAsync(ct);
+                if (proc.ExitCode == 0 && int.TryParse(output.Trim(), out int partNo))
                 {
-                    var gptType = p["GptType"]?.ToString()?.Trim('{', '}');
-                    if (string.Equals(gptType, EspGptTypeGuid, StringComparison.OrdinalIgnoreCase))
-                    {
-                        int partNo = Convert.ToInt32(p["PartitionNumber"] ?? 0);
-                        string guid = p["Guid"]?.ToString()?.Trim('{', '}') ?? "";
-                        ulong size = Convert.ToUInt64(p["Size"] ?? 0);
-                        return (partNo, guid, size);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                if (attempt == 4)
-                {
-                    throw new EspCreationException($"Failed to query new ESP partition via WMI: {ex.Message}");
+                    return partNo;
                 }
             }
         }
-
-        return (-1, "", 0);
+        catch { }
+        return -1;
     }
 
-    private static char FindFreeDriveLetter()
+    private static async Task<(int PartNumber, string PartGuid, ulong PartSize, ulong PartOffset)> FindCreatedEspAsync(
+        int diskNumber, ulong expectedSizeBytes, CancellationToken ct)
+    {
+        var script = $"Get-Partition -DiskNumber {diskNumber} | Where-Object {{ $_.GptType -match '{EspGptTypeGuid}' -and $_.Size -eq {expectedSizeBytes} }} | Select-Object PartitionNumber, Guid, Size, Offset | ConvertTo-Json -Compress";
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -Command \"{script}\"",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        try
+        {
+            using var proc = Process.Start(psi);
+            if (proc != null)
+            {
+                var output = await proc.StandardOutput.ReadToEndAsync(ct);
+                await proc.WaitForExitAsync(ct);
+                if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(output);
+                    var root = doc.RootElement;
+                    if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        if (root.GetArrayLength() == 0) return (-1, "", 0, 0);
+                        root = root[0];
+                    }
+                    int partNo = root.GetProperty("PartitionNumber").GetInt32();
+                    string guid = root.GetProperty("Guid").GetString()?.Trim('{', '}') ?? "";
+                    ulong size = root.GetProperty("Size").GetUInt64();
+                    ulong offset = root.GetProperty("Offset").GetUInt64();
+                    return Guid.TryParse(guid, out _) && offset > 0 ? (partNo, guid, size, offset) : (-1, "", 0, 0);
+                }
+            }
+        }
+        catch { }
+        return (-1, "", 0, 0);
+    }
+
+    private static async Task RefreshStorageCacheAsync(CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = "-NoProfile -Command \"Update-HostStorageCache\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc != null) await proc.WaitForExitAsync(ct);
+    }
+
+    private static async Task AssignEspDriveLetterAsync(int diskNumber, int partitionNumber, char driveLetter, CancellationToken ct)
+    {
+        var script = $"select disk {diskNumber}\nselect partition {partitionNumber}\nassign letter={driveLetter}\nexit\n";
+        await RunDiskpartScriptAsync(script, ct);
+    }
+
+    private static async Task<char> FindFreeDriveLetterAsync(CancellationToken ct)
     {
         var usedLetters = DriveInfo.GetDrives()
-            .Select(d => d.Name[0])
+            .Select(d => char.ToUpperInvariant(d.Name[0]))
             .ToHashSet();
+
+        // DriveInfo omits hidden, empty, and recently assigned volumes. Get-PSDrive
+        // reflects the namespace DiskPart uses when deciding whether a letter is free.
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = "-NoProfile -Command \"Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name\"",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc != null)
+        {
+            var output = await proc.StandardOutput.ReadToEndAsync(ct);
+            await proc.WaitForExitAsync(ct);
+            foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.Trim().Length == 1 && char.IsLetter(line.Trim()[0]))
+                {
+                    usedLetters.Add(char.ToUpperInvariant(line.Trim()[0]));
+                }
+            }
+        }
 
         // Try letters starting from W backwards to minimize collision with common letters
         foreach (char c in "WXYVZUTSRQPONMLKJIHGFE")
