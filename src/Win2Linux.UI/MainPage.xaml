@@ -513,12 +513,12 @@
 
                         <ComboBox x:Name="CmbKernel" Header="Target Linux Kernel" HorizontalAlignment="Stretch" SelectedIndex="0">
                             <ComboBoxItem Content="Distribution Default Kernel (Official ISO Standard Kernel)" Tag="linux-default" />
-                            <ComboBoxItem Content="Linux 7.3 Mainline (Lenovo Legion Speaker Audio Bug Fix &amp; Blackwell GPU)" Tag="linux-7.3-legion" />
+                            <ComboBoxItem Content="Ubuntu 7.3 Signed Kernel (Lenovo Legion Speaker Audio Fix)" Tag="linux-7.3-legion" />
                             <ComboBoxItem Content="Linux Zen / Liquorix (Low-Latency Gaming &amp; Responsive Desktop)" Tag="linux-zen" />
                             <ComboBoxItem Content="Linux LTS (Long-Term Support — Maximum Stability)" Tag="linux-lts" />
                         </ComboBox>
 
-                        <TextBlock Text="Linux 7.3 uses Ubuntu's mainline build and requires an internet connection and Secure Boot turned off. Until a stable build is published, the installer may use a release candidate. Secure Boot is checked before partitioning; Ubuntu's default kernel remains as a fallback. Legion CS35L41 speaker routing settings are applied." 
+                        <TextBlock Text="Installs Ubuntu's Canonical-signed 7.3 kernel from the Ubuntu 26.10 Stonking archive, so Secure Boot can stay enabled without MOK enrollment. Requires internet access. Ubuntu's existing kernel remains available as a fallback. The installer limits Stonking packages to the kernel stack and applies Legion CS35L41 speaker routing settings."
                                    FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
                     </StackPanel>
 

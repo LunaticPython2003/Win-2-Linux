@@ -1024,8 +1024,7 @@ public static class InstallationOrchestrator
 
     private static string GenerateUbuntuLegionKernelPreflight() =>
         "                - >-\n" +
-        "                  if ! command -v mokutil >/dev/null 2>&1; then echo 'Win2Linux: cannot verify Secure Boot before installing the unsigned Linux 7.3 mainline kernel.' >&2; exit 1; fi;\n" +
-        "                  if mokutil --sb-state 2>/dev/null | grep -qi enabled; then echo 'Win2Linux: Linux 7.3 mainline is unsigned and cannot boot with Secure Boot enabled. Disable Secure Boot in firmware and restart the installer; no disk changes have been made.' >&2; exit 1; fi";
+        "                  echo 'Win2Linux: Linux 7.3 will be installed from Ubuntu 26.10 Stonking as a Canonical-signed kernel; Secure Boot can remain enabled.'";
 
     private static string GenerateUbuntuAdditionalLateCommands(LinuxSetupConfiguration config)
     {
@@ -1052,92 +1051,66 @@ public static class InstallationOrchestrator
             #!/bin/bash
             set -euo pipefail
             export DEBIAN_FRONTEND=noninteractive
-            workdir=/tmp/win2linux-kernel73
-            mkdir -p "$workdir"
-            python3 - "$workdir" <<'PY'
-            import hashlib
-            import html.parser
-            import os
-            import re
-            import sys
-            import urllib.request
+            apt-get install -y ca-certificates
+            cat > /etc/apt/sources.list.d/win2linux-stonking-kernel.list <<'WIN2LINUX_APT_SOURCES'
+            deb [arch=amd64] https://archive.ubuntu.com/ubuntu stonking main restricted universe multiverse
+            deb [arch=amd64] https://archive.ubuntu.com/ubuntu stonking-updates main restricted universe multiverse
+            deb [arch=amd64] https://security.ubuntu.com/ubuntu stonking-security main restricted universe multiverse
+            WIN2LINUX_APT_SOURCES
+            cat > /etc/apt/preferences.d/win2linux-stonking-kernel <<'WIN2LINUX_APT_PREFERENCES'
+            Package: *
+            Pin: release n=stonking
+            Pin-Priority: 100
 
-            root = "https://kernel.ubuntu.com/mainline"
+            Package: *
+            Pin: release n=stonking-updates
+            Pin-Priority: 100
 
-            class Links(html.parser.HTMLParser):
-                def __init__(self):
-                    super().__init__()
-                    self.hrefs = []
-                def handle_starttag(self, tag, attrs):
-                    if tag == "a":
-                        self.hrefs.extend(value for key, value in attrs if key == "href" and value)
+            Package: *
+            Pin: release n=stonking-security
+            Pin-Priority: 100
 
-            def get(url):
-                with urllib.request.urlopen(url, timeout=45) as response:
-                    return response.read()
+            Package: linux-generic linux-image-generic linux-headers-generic linux-tools-generic linux-generic-hwe-26.04 linux-image-generic-hwe-26.04 linux-headers-generic-hwe-26.04 linux-image-* linux-modules-* linux-headers-* linux-tools-* linux-buildinfo-* linux-signed-* linux-modules-extra-*
+            Pin: release n=stonking
+            Pin-Priority: 990
 
-            listing = Links()
-            listing.feed(get(root + "/").decode("utf-8", "replace"))
-            tags = {href.strip("/") for href in listing.hrefs}
-            if "v7.3" in tags:
-                tag = "v7.3"
-            else:
-                candidates = [name for name in tags if re.fullmatch(r"v7\.3-rc[0-9]+", name)]
-                if not candidates:
-                    raise SystemExit("Ubuntu mainline has no published Linux 7.3 build yet.")
-                tag = max(candidates, key=lambda name: int(name.rsplit("rc", 1)[1]))
+            Package: linux-generic linux-image-generic linux-headers-generic linux-tools-generic linux-generic-hwe-26.04 linux-image-generic-hwe-26.04 linux-headers-generic-hwe-26.04 linux-image-* linux-modules-* linux-headers-* linux-tools-* linux-buildinfo-* linux-signed-* linux-modules-extra-*
+            Pin: release n=stonking-updates
+            Pin-Priority: 990
 
-            base = f"{root}/{tag}/amd64"
-            index = Links()
-            index.feed(get(base + "/").decode("utf-8", "replace"))
-            files = sorted({href for href in index.hrefs if href.endswith(".deb")})
-            image_pattern = re.compile(r"linux-image-unsigned-(7\.3\.0-[^_]+)-generic_.*_amd64\.deb$")
-            images = [(name, image_pattern.fullmatch(name)) for name in files]
-            images = [(name, match) for name, match in images if match]
-            if len(images) != 1:
-                raise SystemExit(f"Expected one generic 64-bit image package in {tag}, found {len(images)}.")
-            kernel_abi = images[0][1].group(1)
-            required = [
-                images[0][0],
-                next((name for name in files if name.startswith(f"linux-modules-{kernel_abi}-generic_") and name.endswith("_amd64.deb")), None),
-                next((name for name in files if name.startswith(f"linux-headers-{kernel_abi}_") and name.endswith("_all.deb")), None),
-                next((name for name in files if name.startswith(f"linux-headers-{kernel_abi}-generic_") and name.endswith("_amd64.deb")), None),
-            ]
-            if any(name is None for name in required):
-                raise SystemExit(f"The published {tag} build is missing one or more required image, module, or header packages.")
-
-            os.makedirs(sys.argv[1], exist_ok=True)
-            checksums = get(base + "/CHECKSUMS").decode("ascii", "replace")
-            expected = {}
-            for line in checksums.splitlines():
-                fields = line.split()
-                if len(fields) >= 2:
-                    expected[fields[-1].lstrip("*")] = fields[0]
-            for filename in required:
-                if filename not in expected:
-                    raise SystemExit(f"No published SHA-256 checksum for {filename}.")
-                payload = get(base + "/" + filename)
-                actual = hashlib.sha256(payload).hexdigest()
-                if actual != expected[filename]:
-                    raise SystemExit(f"SHA-256 verification failed for {filename}.")
-                with open(os.path.join(sys.argv[1], filename), "wb") as output:
-                    output.write(payload)
-            with open(os.path.join(sys.argv[1], "kernel-version"), "w", encoding="ascii") as output:
-                output.write(kernel_abi + " (" + tag + ")\n")
-            PY
-            dpkg -i "$workdir"/*.deb || apt-get install -f -y
+            Package: linux-generic linux-image-generic linux-headers-generic linux-tools-generic linux-generic-hwe-26.04 linux-image-generic-hwe-26.04 linux-headers-generic-hwe-26.04 linux-image-* linux-modules-* linux-headers-* linux-tools-* linux-buildinfo-* linux-signed-* linux-modules-extra-*
+            Pin: release n=stonking-security
+            Pin-Priority: 990
+            WIN2LINUX_APT_PREFERENCES
+            apt-get update
+            apt-get install -y --install-recommends linux-generic/stonking sbsigntool
+            kernel_image="$(find /boot -maxdepth 1 -type f -name 'vmlinuz-7.3.0-*-generic' -printf '%f\n' | sort -V | tail -n 1)"
+            if [ -z "$kernel_image" ]; then
+              echo 'Ubuntu Stonking archive did not install a 7.3 generic kernel image.' >&2
+              exit 1
+            fi
+            if ! sbverify --list "/boot/$kernel_image" >/tmp/win2linux-kernel-signature.txt 2>&1; then
+              cat /tmp/win2linux-kernel-signature.txt >&2
+              echo "The installed kernel image $kernel_image has no readable Secure Boot signature." >&2
+              exit 1
+            fi
+            grep -qi canonical /tmp/win2linux-kernel-signature.txt || {
+              cat /tmp/win2linux-kernel-signature.txt >&2
+              echo "The installed kernel image $kernel_image is not signed by Canonical." >&2
+              exit 1
+            }
             printf '%s\n' '# Lenovo Legion CS35L41 speaker routing fix' 'options snd-hda-intel model=dual-codecs' 'options snd-sof-pci-intel-tgl dmic_detect=0' > /etc/modprobe.d/alsa-legion-speakers.conf
             update-initramfs -u -k all
             update-grub
             mkdir -p /var/lib/win2linux
-            cp "$workdir/kernel-version" /var/lib/win2linux/kernel-7.3-installed
-            rm -rf "$workdir"
+            printf '%s\n' "$kernel_image (Ubuntu Stonking, Canonical-signed)" > /var/lib/win2linux/kernel-7.3-installed
+            rm -f /tmp/win2linux-kernel-signature.txt
             WIN2LINUX_KERNEL_SCRIPT
             chmod 0755 /target/tmp/win2linux-install-kernel73.sh
             if curtin in-target --target=/target -- /bin/bash /tmp/win2linux-install-kernel73.sh; then
-              echo 'Linux 7.3 mainline kernel installed; the Ubuntu default kernel remains available as a fallback.' > /target/var/log/win2linux-kernel-selection.log
+              echo 'Canonical-signed Ubuntu 7.3 kernel installed from the Ubuntu 26.10 Stonking archive. Secure Boot remains enabled and the existing Ubuntu kernel remains available as a fallback.' > /target/var/log/win2linux-kernel-selection.log
             else
-              echo 'Linux 7.3 mainline kernel installation failed. The Ubuntu default kernel remains available; check installer logs and network access.' > /target/var/log/win2linux-kernel-selection.log
+              echo 'Canonical-signed Ubuntu 7.3 kernel installation failed. The Ubuntu default kernel remains available; check installer logs and network access.' > /target/var/log/win2linux-kernel-selection.log
             fi
             rm -f /target/tmp/win2linux-install-kernel73.sh
             """;
