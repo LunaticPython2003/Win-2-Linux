@@ -1023,22 +1023,22 @@ public static class InstallationOrchestrator
     }
 
     private static string GenerateUbuntuLegionKernelPreflight() =>
-        "                - >-\n" +
-        "                  echo 'Win2Linux: Linux 7.3 will be installed from Ubuntu 26.10 Stonking as a Canonical-signed kernel; Secure Boot can remain enabled.'";
+        "    - >-\n" +
+        "      echo 'Win2Linux: Linux 7.3 will be installed from Ubuntu 26.10 Stonking as a Canonical-signed kernel; Secure Boot can remain enabled.'";
 
     private static string GenerateUbuntuAdditionalLateCommands(LinuxSetupConfiguration config)
     {
         var commands = new List<string>();
         if (config.InstallNvidiaDrivers)
         {
-            commands.Add("                - curtin in-target --target=/target -- ubuntu-drivers install || true");
+            commands.Add("    - curtin in-target --target=/target -- ubuntu-drivers install || true");
         }
 
         if (config.KernelSelection == "linux-7.3-legion")
         {
-            commands.Add("                - >-");
-            commands.Add("                  curtin in-target --target=/target --");
-            commands.Add("                  bash -c 'mkdir -p /etc/modprobe.d && printf \"# Lenovo Legion CS35L41 speaker routing fix\\\\noptions snd-hda-intel model=dual-codecs\\\\noptions snd-sof-pci-intel-tgl dmic_detect=0\\\\n\" > /etc/modprobe.d/alsa-legion-speakers.conf'");
+            commands.Add("    - >-");
+            commands.Add("      curtin in-target --target=/target --");
+            commands.Add("      bash -c 'mkdir -p /etc/modprobe.d && printf \"# Lenovo Legion CS35L41 speaker routing fix\\\\noptions snd-hda-intel model=dual-codecs\\\\noptions snd-sof-pci-intel-tgl dmic_detect=0\\\\n\" > /etc/modprobe.d/alsa-legion-speakers.conf'");
         }
 
         return string.Join("\n", commands);
@@ -1115,9 +1115,9 @@ public static class InstallationOrchestrator
             rm -f /target/tmp/win2linux-install-kernel73.sh
             """;
 
-        return "                - |\n" + string.Join(
+        return "    - |\n" + string.Join(
             "\n",
-            script.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n').Select(line => "                  " + line));
+            script.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n').Select(line => "      " + line));
     }
 
     internal static string GenerateUbuntuNetworkConfig(WifiNetworkConfiguration? wifiNetwork)
