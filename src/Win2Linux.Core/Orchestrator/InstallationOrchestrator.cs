@@ -1172,24 +1172,35 @@ public static class InstallationOrchestrator
         var command = $$"""
             - >-
               bash -c 'set -eu;
-                            udevadm settle --timeout=10 || true;
+              udevadm settle --timeout=10 || true;
               ESP=/dev/disk/by-partuuid/{{parsedEspGuid:D}};
-              test -b "$ESP";
-              DISK=$(lsblk -no PKNAME "$ESP");
-              test -n "$DISK";
+              test -b "$ESP" || { echo "Win2Linux: staged ESP {{parsedEspGuid:D}} was not found" >&2; exit 1; };
+              ESP=$(readlink -f "$ESP");
+              DISK=$(lsblk -no PKNAME "$ESP" | tr -d "[:space:]");
+              test -n "$DISK" || { echo "Win2Linux: could not resolve the disk containing staged ESP $ESP" >&2; exit 1; };
               TARGET=/dev/$DISK;
-              test -b "$TARGET";
-              test "$(lsblk -dnro TYPE "$TARGET")" = disk;
+              test -b "$TARGET" && test "$(lsblk -dnro TYPE "$TARGET")" = disk || { echo "Win2Linux: resolved target $TARGET is not a disk" >&2; exit 1; };
               sed -i "s|/dev/win2linux-target|$TARGET|g" /autoinstall.yaml;
-              grep -Fq "path: $TARGET" /autoinstall.yaml;
+              grep -Fq "path: $TARGET" /autoinstall.yaml || { echo "Win2Linux: target disk path was not written to autoinstall.yaml" >&2; exit 1; };
               printf "Win2Linux target disk resolved to %s\\n" "$TARGET"'
             """.Trim();
         var indentedCommand = string.Join(
             "\n",
             command.Split('\n').Select(line => $"    {line}"));
-        var lineBreak = yaml.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var marker = "  early-commands:" + lineBreak;
-        return yaml.Replace(marker, marker + indentedCommand.Replace("\n", lineBreak, StringComparison.Ordinal) + lineBreak, StringComparison.Ordinal);
+        const string marker = "  early-commands:";
+        var markerIndex = yaml.IndexOf(marker, StringComparison.Ordinal);
+        if (markerIndex < 0 || (markerIndex > 0 && yaml[markerIndex - 1] != '\n'))
+        {
+            throw new InvalidOperationException("Could not insert the staged ESP disk resolver: Ubuntu autoinstall early-commands were not found.");
+        }
+
+        var lineEnd = yaml.IndexOf('\n', markerIndex);
+        if (lineEnd < 0)
+        {
+            throw new InvalidOperationException("Could not insert the staged ESP disk resolver: Ubuntu early-commands line has no line ending.");
+        }
+
+        return yaml.Insert(lineEnd + 1, indentedCommand + "\n");
     }
 
     private static string GetSha512CryptHash(string password)
