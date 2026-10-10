@@ -135,7 +135,9 @@ public class OrchestratorTests
         var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
         var zorinPlan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, _testConfig);
         var zorinConfig = InstallationOrchestrator.GenerateUnattendedConfig(zorinPlan, TestEspPartitionNumber, TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
-        Assert.Contains("autoinstall", zorinConfig);
+        Assert.Contains("partman-auto/init_automatically_partition select biggest_free", zorinConfig);
+        Assert.DoesNotContain("d-i partman-auto/method", zorinConfig);
+        Assert.DoesNotContain("autoinstall:", zorinConfig);
     }
 
     [Fact]
@@ -394,14 +396,107 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public void ZorinAutoinstallYamlPassesValidation()
+    public void ZorinUsesUbiquityPreseedAndPreservesItsExistingEsp()
     {
         var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
         var plan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, _testConfig);
-        var autoinstall = InstallationOrchestrator.GenerateUnattendedConfig(plan, TestEspPartitionNumber, TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        var preseed = InstallationOrchestrator.GenerateUnattendedConfig(plan, TestEspPartitionNumber, TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        Assert.Equal("preseed.cfg", InstallationOrchestrator.GetUnattendedFilename("zorin"));
+        Assert.Contains("automatic-ubiquity", zorin.AutoinstallKernelArgs);
+        Assert.DoesNotContain("subiquity", zorin.AutoinstallKernelArgs);
+        Assert.DoesNotContain("ds=nocloud", zorin.AutoinstallKernelArgs);
+        Assert.Contains("$reusemethod{ } method{ efi } .", preseed);
+        Assert.Contains("ubiquity ubiquity/success_command string", preseed);
+        Assert.DoesNotContain("preseed/late_command", preseed);
+        Assert.DoesNotContain("confirm_write_new_label", preseed);
+        Assert.DoesNotContain("#cloud-config", preseed);
+        Assert.Contains("partman-auto/disk string /dev/win2linux-target-unverified", preseed);
+        var scripts = InstallationOrchestrator.GenerateZorinInstallerScripts(plan, TestEspPartitionNumber,
+            TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        Assert.Contains("bash /cdrom/win2linux/unattended/early.sh", preseed);
+        Assert.Contains("debconf-set partman-auto/disk", scripts["early.sh"]);
+        Assert.Contains("partman-auto/init_automatically_partition select biggest_free", preseed);
+    }
 
-        // This must not throw
-        InstallationOrchestrator.ValidateAutoinstallYaml(autoinstall);
+    [Theory]
+    [InlineData(null, TestEspOffsetBytes)]
+    [InlineData(TestEspPartitionGuid, null)]
+    public void ZorinRefusesMissingEspIdentityOrGeometry(string? guid, ulong? offset)
+    {
+        var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
+        var plan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, _testConfig);
+        Assert.Throws<InvalidOperationException>(() => InstallationOrchestrator.GenerateUnattendedConfig(
+            plan, TestEspPartitionNumber, TestEspSizeBytes, guid, offset));
+    }
+
+    [Fact]
+    public void ZorinKernelSetupInstallsVersionedSignedPackagesAndReportsFailure()
+    {
+        var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
+        var setup = _testConfig with { KernelSelection = "linux-7.3-legion", InstallNvidiaDrivers = true, InteractiveReview = false };
+        var plan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50, setup);
+        var preseed = InstallationOrchestrator.GenerateUnattendedConfig(plan, TestEspPartitionNumber,
+            TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        static string DecodeScript(string value) => System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(
+            System.Text.RegularExpressions.Regex.Match(value, @"printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d").Groups[1].Value));
+        var scripts = InstallationOrchestrator.GenerateZorinInstallerScripts(plan, TestEspPartitionNumber,
+            TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        var prepare = scripts["prepare.py"];
+        Assert.Contains("/dev/disk/by-partuuid/" + TestEspPartitionGuid, prepare);
+        Assert.Contains("809444384256", prepare);
+        Assert.Contains("809461874688", prepare);
+        Assert.Contains("Preserved partition offset changed", prepare);
+        Assert.Contains("Largest free extent is not the staged Linux space", prepare);
+        Assert.Contains("/lib/partman/commit.d/00win2linux-preserve", prepare);
+        Assert.Contains("Installer would delete a preserved partition", prepare);
+        var wrapper = scripts["finish.sh"];
+        var finish = DecodeScript(wrapper);
+        Assert.Contains("Pin-Priority: -1", finish);
+        Assert.Contains("debianutils/stonking", finish);
+        Assert.Contains("nvidia-headless-no-dkms", finish);
+        Assert.Contains("mount --make-rslave", wrapper);
+        Assert.Contains("sbverify --list", finish);
+        Assert.Contains("modinfo -k", finish);
+        Assert.Contains("--no-remove", finish);
+        Assert.DoesNotContain("linux-generic/stonking", finish);
+        Assert.DoesNotContain("linux-image-unsigned", finish);
+        Assert.DoesNotContain("linux-headers", finish);
+        Assert.Contains("ubiquity/reboot boolean false", preseed);
+        Assert.Contains("systemd-run --unit=win2linux-reboot", wrapper);
+        Assert.DoesNotContain("debconf-set-selections", prepare);
+        Assert.Contains("exit 1", wrapper);
+        Assert.Contains("kernel-7.3-installed", finish);
+        Assert.True(finish.IndexOf("cp /boot/efi/EFI/ubuntu/grub.cfg", StringComparison.Ordinal) <
+            finish.IndexOf("rm -rf /boot/efi/win2linux", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZorinPreseedRejectsMultilineValues()
+    {
+        var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
+        var plan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50,
+            _testConfig with { RealName = "User\nd-i partman/confirm boolean true" });
+        Assert.Throws<InvalidOperationException>(() => InstallationOrchestrator.GenerateUnattendedConfig(
+            plan, TestEspPartitionNumber, TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes));
+    }
+
+    [Fact]
+    public void ZorinWifiUsesAProtectedNetworkManagerProfileWithoutAKeyInPreseedOrProcessArguments()
+    {
+        var zorin = DistroRegistry.SupportedDistributions.First(d => d.Id == "zorin");
+        var wifi = new WifiNetworkConfiguration("Test;Network", "TestWifiKey73!", false);
+        var plan = new InstallationPlan(zorin, _targetSecondaryDisk, _protectedDisk, 53687091200, 50,
+            _testConfig with { WifiNetwork = wifi, KernelSelection = "linux-7.3-legion" });
+        var preseed = InstallationOrchestrator.GenerateUnattendedConfig(plan, TestEspPartitionNumber,
+            TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        var scripts = InstallationOrchestrator.GenerateZorinInstallerScripts(plan, TestEspPartitionNumber,
+            TestEspSizeBytes, TestEspPartitionGuid, TestEspOffsetBytes);
+        Assert.DoesNotContain(wifi.Password!, preseed);
+        Assert.Contains("('wifi','ssid',wifi['Ssid'])", scripts["prepare.py"]);
+        Assert.Contains("os.fchmod(fd,0o600)", scripts["prepare.py"]);
+        Assert.Contains("network_command('nmcli','--wait','45','connection','up','uuid',connection_uuid)", scripts["prepare.py"]);
+        Assert.DoesNotContain("'nmcli','dev','wifi','connect'", scripts["prepare.py"]);
+        Assert.Contains("install -D -m 0600", scripts["finish.sh"]);
     }
 
     [Fact]
@@ -434,7 +529,6 @@ public class OrchestratorTests
 
     [Theory]
     [InlineData("ubuntu")]
-    [InlineData("zorin")]
     public void AutoinstallPreservesExactExistingGptLayout(string distroId)
     {
         var distro = DistroRegistry.SupportedDistributions.First(d => d.Id == distroId);

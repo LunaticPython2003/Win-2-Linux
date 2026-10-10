@@ -6,6 +6,17 @@ namespace Win2Linux.Tests;
 public class ChecksumTests
 {
     [Fact]
+    public void ParsesOfficialZorinEditionChecksumsWithoutMixingEditions()
+    {
+        const string coreHash = "44649b97bd307fc4c8529205d098ebbf98575a1e1ba2ee7d7005b697af1721d5";
+        var content = $"<ul><li>Zorin OS 18.1 Core 64-bit: <code>{coreHash}</code></li>" +
+            "<li>Zorin OS 18.1 Pro 64-bit: <code>3984789a2762d1aa359eda5fe19c757e3e5ea9a1bd5a4acc52099c3979905ded</code></li></ul>";
+        Assert.Equal(coreHash, IsoDownloadService.ParseExpectedHash(content, "Zorin-OS-18.1-Core-64-bit.iso"));
+        Assert.Null(IsoDownloadService.ParseExpectedHash(content, "Zorin-OS-17.2-Core-64-bit.iso"));
+        Assert.Null(IsoDownloadService.ParseExpectedHash(content, "Zorin-OS-18.1-Education-64-bit.iso"));
+    }
+
+    [Fact]
     public void ParsesFedoraBsdChecksumFormatWithPgpWrapper()
     {
         var fedoraChecksumContent = """

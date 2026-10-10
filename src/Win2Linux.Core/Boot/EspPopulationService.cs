@@ -304,8 +304,19 @@ public static class EspPopulationService
                 "Ensure staging generated the config before ESP population.");
         }
 
+        if (distro.Id == "zorin")
+        {
+            foreach (var name in new[] { "early.sh", "prepare.py", "finish.sh" })
+            {
+                var source = Path.Combine(unattendedDir, name);
+                if (!File.Exists(source) || new FileInfo(source).Length == 0)
+                    throw new EspPopulationException($"Zorin installer script '{name}' is missing or empty.");
+                FileUtilities.SafeCopy(source, Path.Combine(espUnattendedDir, name));
+            }
+        }
+
         // --- 9. Write meta-data for NoCloud-based installers ---
-        // Ubuntu uses Subiquity's explicit autoinstallpath; Zorin still uses NoCloud.
+        // Ubuntu uses Subiquity's explicit autoinstallpath; Zorin uses Ubiquity preseed.
         string? metaDataDest = null;
         if (unattendedFilename == "user-data")
         {
@@ -386,6 +397,8 @@ public static class EspPopulationService
         required.Add(distro.Id.Equals("ubuntu", StringComparison.OrdinalIgnoreCase)
             ? configName : $"win2linux/unattended/{configName}");
         if (configName == "user-data") required.Add("win2linux/unattended/meta-data");
+        if (distro.Id == "zorin")
+            required.AddRange(new[] { "win2linux/unattended/early.sh", "win2linux/unattended/prepare.py", "win2linux/unattended/finish.sh" });
         if (IsoExtractService.RequiresLiveSquashfs(distro)) required.Add("LiveOS/squashfs.img");
         if (IsoExtractService.RequiresCasper(distro))
         {
@@ -406,7 +419,7 @@ public static class EspPopulationService
         {
             throw new EspPopulationException(
                 $"Final ESP verification failed: {distro.DisplayName} needs " +
-                $"dists/{distro.OfflineAptSuite}/Release and local packages under pool/ for offline Subiquity APT.");
+                $"dists/{distro.OfflineAptSuite}/Release and local packages under pool/ for the installer's offline APT source.");
         }
     }
 

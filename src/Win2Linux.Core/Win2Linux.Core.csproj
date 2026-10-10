@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Win2Linux.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="YamlDotNet" Version="15.1.2" />
     <PackageReference Include="CryptSharpOfficial" Version="2.1.0" />

@@ -174,7 +174,7 @@ public static class DistroRegistry
         ),
         new(
             Id: "zorin",
-            DisplayName: "Zorin OS 17.2",
+            DisplayName: "Zorin OS 18.1 Core",
             Description: "Stunning Windows-like desktop designed for seamless transition from Windows. Signed by Canonical under Microsoft UEFI CA for effortless dual-booting.",
             AccentColor: "#13A5E5",
             SecureBootStatus: "Certified (Official Microsoft UEFI CA)",
@@ -183,19 +183,21 @@ public static class DistroRegistry
             EfiBinary: "shimx64.efi",
             UefiBootLabel: "Zorin",
             DefaultFilesystem: "ext4",
-            DefaultVersion: "17.2",
-            IsoDownloadUrl: "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso",
-            ChecksumUrl: "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso.sha256",
-            UnattendedMechanism: "Subiquity Autoinstall (cloud-init)",
+            DefaultVersion: "18.1",
+            IsoDownloadUrl: "https://mirrors.edge.kernel.org/zorinos-isos/18/Zorin-OS-18.1-Core-64-bit.iso",
+            ChecksumUrl: "https://help.zorin.com/docs/getting-started/check-the-integrity-of-your-copy-of-zorin-os/",
+            UnattendedMechanism: "Ubiquity Preseed (preseed.cfg)",
             IsoKernelPath: "casper/vmlinuz",
-            IsoInitrdPath: "casper/initrd.lz",
-            IsoShimPath: "EFI/BOOT/BOOTX64.EFI",
-            IsoGrubEfiPath: "EFI/BOOT/grubx64.efi",
-            AutoinstallKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram autoinstall \"ds=nocloud\\;s=/cdrom/win2linux/unattended/\" quiet splash ---",
+            IsoInitrdPath: "casper/initrd.zstd",
+            IsoShimPath: "efi/boot/bootx64.efi",
+            IsoGrubEfiPath: "efi/boot/grubx64.efi",
+            AutoinstallKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram automatic-ubiquity noprompt preseed/file=/cdrom/win2linux/unattended/preseed.cfg quiet splash ---",
             InteractiveKernelArgs: "boot=casper ignore_uuid live-media-path=/casper/ toram quiet splash ---",
             IsoMirrorUrls: [
-                "https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso"
-            ]
+                "https://mirror.freedif.org/zorin/18/Zorin-OS-18.1-Core-64-bit.iso",
+                "https://mirrors.edge.kernel.org/zorinos-isos/18/Zorin-OS-18.1-Core-64-bit.iso"
+            ],
+            OfflineAptSuite: "noble"
         ),
     };
 }

@@ -31,12 +31,12 @@ public static class IsoExtractService
         distro.Id is "ubuntu" or "linuxmint" or "zorin";
 
     /// <summary>
-    /// Ubuntu profiles with an OfflineAptSuite require the ISO's local APT index and
-    /// package pool to be present at the root of /cdrom. Subiquity 26.04.1 keeps
-    /// cdrom.sources enabled for offline installs and expects this full media layout.
+    /// Ubuntu and Zorin profiles with an OfflineAptSuite retain the ISO's local
+    /// APT index and package pool at /cdrom for their respective installers.
     /// </summary>
     public static bool RequiresOfflineAptRepository(DistroProfile distro) =>
-        distro.Id.Equals("ubuntu", StringComparison.OrdinalIgnoreCase) &&
+        (distro.Id.Equals("ubuntu", StringComparison.OrdinalIgnoreCase) ||
+         distro.Id.Equals("zorin", StringComparison.OrdinalIgnoreCase)) &&
         !string.IsNullOrWhiteSpace(distro.OfflineAptSuite);
 
     /// <summary>
@@ -106,7 +106,7 @@ public static class IsoExtractService
             return;
 
         progress.Report(new ProgressUpdate(5, 10, "Extracting Offline APT Repository", 46,
-            $"[Extract] Staging dists/{GetOfflineAptSuite(distro)} and pool from the Ubuntu ISO..."));
+            $"[Extract] Staging dists/{GetOfflineAptSuite(distro)} and pool from the {distro.DisplayName} ISO..."));
 
         var extracted = false;
         char? driveLetter = null;
@@ -164,7 +164,7 @@ public static class IsoExtractService
         }
 
         progress.Report(new ProgressUpdate(5, 10, "Offline APT Repository Staged", 47,
-            "[Extract] ✓ Ubuntu suite metadata and package pool are available locally for Subiquity"));
+            "[Extract] ✓ Suite metadata and package pool are available locally for the installer"));
     }
 
     private static string GetOfflineAptSuite(DistroProfile distro)
@@ -476,6 +476,8 @@ public static class IsoExtractService
                         if (fileName.EndsWith(".squashfs", StringComparison.OrdinalIgnoreCase) ||
                             fileName.EndsWith(".size", StringComparison.OrdinalIgnoreCase) ||
                             fileName.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".manifest-remove", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith(".manifest-desktop", StringComparison.OrdinalIgnoreCase) ||
                             fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
                         {
                             var destFile = Path.Combine(casperDestDir, fileName);
@@ -558,6 +560,7 @@ public static class IsoExtractService
             {
                 "casper\\initrd",
                 "casper\\initrd.lz",
+                "casper\\initrd.zstd",
                 "isolinux\\initrd.img",
                 "images\\pxeboot\\initrd.img",
                 "boot\\x86_64\\loader\\initrd",
@@ -724,7 +727,7 @@ public static class IsoExtractService
         await ExtractSingleFileWithFallbackAsync(
             isoPath,
             distro.IsoInitrdPath,
-            new[] { "images/pxeboot/initrd.img", "boot/x86_64/loader/initrd", "install.amd/initrd.gz", "casper/initrd" },
+            new[] { "images/pxeboot/initrd.img", "boot/x86_64/loader/initrd", "install.amd/initrd.gz", "casper/initrd", "casper/initrd.zstd", "casper/initrd.lz" },
             Path.Combine(bootStagingDir, "initrd"),
             useWsl, ct);
 

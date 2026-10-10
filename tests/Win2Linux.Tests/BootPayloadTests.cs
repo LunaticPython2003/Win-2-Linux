@@ -24,12 +24,18 @@ public sealed class BootPayloadTests : IDisposable
         Write(staging.EfiDirectory, "shimx64.efi", "test-shim");
         Write(staging.EfiDirectory, "grubx64.efi", "test-grub");
         Write(staging.UnattendedDirectory, InstallationOrchestrator.GetUnattendedFilename(distroId), "test-config");
+        if (distroId == "zorin")
+        {
+            Write(staging.UnattendedDirectory, "early.sh", "test-early");
+            Write(staging.UnattendedDirectory, "prepare.py", "test-prepare");
+            Write(staging.UnattendedDirectory, "finish.sh", "test-finish");
+        }
         if (distroId == "fedora") Write(staging.BootDirectory, "LiveOS/squashfs.img", "test-rootfs");
         else Write(staging.BootDirectory, "casper/test.squashfs", "test-rootfs");
         if (IsoExtractService.RequiresOfflineAptRepository(distro))
         {
-            Write(staging.BootDirectory, $"dists/{distro.OfflineAptSuite}/Release", "Suite: resolute\n");
-            Write(staging.BootDirectory, "dists/resolute/main/binary-amd64/Packages.gz", "package index");
+            Write(staging.BootDirectory, $"dists/{distro.OfflineAptSuite}/Release", $"Suite: {distro.OfflineAptSuite}\n");
+            Write(staging.BootDirectory, $"dists/{distro.OfflineAptSuite}/main/binary-amd64/Packages.gz", "package index");
             Write(staging.BootDirectory, "pool/main/test-package_1.0_amd64.deb", "package bytes");
         }
 
@@ -42,13 +48,22 @@ public sealed class BootPayloadTests : IDisposable
         Assert.Equal("test-kernel", File.ReadAllText(Path.Combine(_root, "win2linux", "boot", "vmlinuz")));
         if (IsoExtractService.RequiresOfflineAptRepository(distro))
         {
-            Assert.Equal("Suite: resolute\n", File.ReadAllText(Path.Combine(_root, "dists", "resolute", "Release")));
+            Assert.Equal($"Suite: {distro.OfflineAptSuite}\n", File.ReadAllText(Path.Combine(_root, "dists", distro.OfflineAptSuite!, "Release")));
             Assert.Equal("package bytes", File.ReadAllText(Path.Combine(_root, "pool", "main", "test-package_1.0_amd64.deb")));
             Assert.True(IsoExtractService.HasOfflineAptRepository(distro, _root));
         }
         var initrd = File.ReadAllBytes(Path.Combine(_root, "win2linux", "boot", "initrd"));
         if (distroId == "fedora") Assert.EndsWith("test-initrd", System.Text.Encoding.UTF8.GetString(initrd));
         else Assert.Equal("test-initrd", System.Text.Encoding.UTF8.GetString(initrd));
+        if (distroId == "zorin")
+        {
+            foreach (var name in new[] { "early.sh", "prepare.py", "finish.sh" })
+            {
+                File.Delete(Path.Combine(_root, "win2linux", "unattended", name));
+                Assert.Contains(name, Assert.Throws<EspPopulationException>(() => EspPopulationService.VerifyBootPayload(distro, _root)).Message);
+                Write(_root, $"win2linux/unattended/{name}", "test-script");
+            }
+        }
 
         // Catch the original failure even when /casper still contains a copy.
         File.Delete(Path.Combine(_root, "win2linux", "boot", "vmlinuz"));

@@ -50,6 +50,32 @@ var plan = new InstallationPlan(
     }
 );
 
+if (args.Length == 2 && args[0] == "--zorin-scripts")
+{
+    var zorin = DistroRegistry.SupportedDistributions.Single(d => d.Id == "zorin");
+    foreach (var (name, setup) in new[]
+    {
+        ("default", plan.EffectiveSetupConfig),
+        ("kernel-wifi", plan.EffectiveSetupConfig with
+        {
+            KernelSelection = "linux-7.3-legion",
+            WifiNetwork = new WifiNetworkConfiguration("Fixture Network", "FixtureWifiKey73!", false)
+        })
+    })
+    {
+        var directory = System.IO.Path.Combine(args[1], name);
+        System.IO.Directory.CreateDirectory(directory);
+        var zorinPlan = plan with { SelectedDistro = zorin, SetupConfig = setup };
+        foreach (var script in InstallationOrchestrator.GenerateZorinInstallerScripts(zorinPlan,
+            3, 8589934592, "aabbccdd-eeff-0011-2233-445566778899", 809461874688))
+        {
+            System.IO.File.WriteAllText(System.IO.Path.Combine(directory, script.Key), script.Value.Replace("\r\n", "\n"));
+        }
+    }
+    Console.WriteLine("Zorin preparation test scripts exported.");
+    return;
+}
+
 // We simulate that the ESP will be partition 3 (since partitions 1 and 2 exist)
 string autoinstallYaml = InstallationOrchestrator.GenerateUnattendedConfig(
     plan, espPartitionNumber: 3, espSizeBytes: 8589934592,

@@ -37,7 +37,7 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 - Windows-native installation; install Linux from Windows without a USB
 - Real physical Linux installation on your disk (not WSL, not a VM)
 - GRUB first boot support 
-- Ubuntu 26, Fedora 44 (KDE Plasma default or GNOME Workstation), Linux Mint 22.1, or Zorin OS 17.2
+- Ubuntu 26, Fedora 44 (KDE Plasma default or GNOME Workstation), Linux Mint 22.1, or Zorin OS 18.1 Core
 - Built with modern .NET 8, C#, and WinUI 3 (Windows App SDK Fluent Design)
 - Protects the Windows system disk from destructive partition operations
 - Boots into a graphical setup window to review all the setups
@@ -46,10 +46,13 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 
 ## What's new?
 
-The latest version of Win2Linux now supports fully automated installation for Ubuntu 26 LTS without any manual intervention whatsoever. Lets talk about how this works specifically - 
-- The GUI side of the installer takes all the parameters required from Windows which includes signin account details, region info, internet settings, kernel selection, proprietory drivers and stages them.
-- The staged changes are then written into an [autoinstall.yaml](https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html) file which the subiquity installer of Ubuntu picks up during setup and installs without manual intervention.
-- Fedora autoinstaller has now been more refined. However, if no-manual instllation is of utmost importance; Ubuntu should be undoubtedly preferred. 
+The latest version of Win2Linux now supports fully automated installation for Zorin OS (and Ubuntu) without any manual intervention whatsoever. Lets talk about how this works specifically -
+
+- Zorin OS 18.1 Core uses **Ubiquity**, so its automated setup is staged as `preseed.cfg` and booted with `automatic-ubiquity`. The profile includes Zorin's `initrd.zstd`, live filesystem, installer manifests, and local `noble` package repository.
+- If Zorin preparation fails, Win2Linux displays the failing stage and error output and saves `/var/log/installer/win2linux-zorin-prepare.log` in the live session. If Wi-Fi setup or the Linux 7.3 download connection fails, a dialog offers Wi-Fi selection, password entry, and a connection retry before partitioning. It runs inside the installer session without requiring a terminal or desktop network menu.
+- Zorin's live Wi-Fi profile is loaded from `/run/NetworkManager/system-connections/` with root-only permissions. Connection errors show NetworkManager's response; a failed download check offers a retry without asking for the Wi-Fi password again.
+- The Linux 7.3 option on Zorin installs versioned Canonical-signed Ubuntu kernel packages, the compatible `run-parts` utility, and, when requested, matching signed NVIDIA modules (if selected) with GPU-compatible desktop userspace packages from Zorin's base repositories. Other Ubuntu 26.10 packages are blocked by APT pinning. The stock Zorin kernel remains available. Internet access is required for the post-install setup; a failure leaves a log at `/target/var/log/win2linux-zorin-setup.log` and disables automatic reboot.
+- ISO downloads are cached under `win2linux\iso` on the selected installation volume (for example, `D:\win2linux\iso`). Existing ISOs in `repo\iso` can still be reused after checksum verification. The downloader checks available space before transferring an ISO and stops immediately on local storage errors.
 
 
 ## Downloads & Releases
@@ -161,7 +164,7 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [ ] Add support for more bootloaders
 - [ ] Add support for more UEFI boot entries
 - [ ] Add support for automatically signing unsupported distros for Secure Boot
-- [x] Make it possible to completely bypass the need for booting into installer (Fully tested support for Ubuntu and partial support for Fedora)
+- [x] Make it possible to completely bypass the need for booting into installer - 50 % complete (Fully tested support for Ubuntu and Zorin, and partial support for Fedora)
 - [ ] Bring your own ISO support
 
 ## Screenshots

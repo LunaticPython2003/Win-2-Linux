@@ -43,7 +43,7 @@ public sealed partial class MainPage : Page
     {
         Log("MainPage_Loaded fired");
         InitializeSetupDefaults();
-        PanelWifiConfig.Visibility = _selectedDistro.Id == "ubuntu" ? Visibility.Visible : Visibility.Collapsed;
+        PanelWifiConfig.Visibility = _selectedDistro.Id is "ubuntu" or "zorin" ? Visibility.Visible : Visibility.Collapsed;
         await LoadDiscoveryDataAsync();
         await RefreshWifiProfilesAsync();
     }
@@ -127,7 +127,8 @@ public sealed partial class MainPage : Page
             if (distro == null) return;
 
             _selectedDistro = distro;
-            PanelWifiConfig.Visibility = distroId == "ubuntu" ? Visibility.Visible : Visibility.Collapsed;
+            PanelWifiConfig.Visibility = distroId is "ubuntu" or "zorin" ? Visibility.Visible : Visibility.Collapsed;
+            BtnUpdateExistingWifi.Visibility = distroId == "ubuntu" ? Visibility.Visible : Visibility.Collapsed;
 
             // Reset all card borders
             var defaultStroke = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
@@ -262,7 +263,7 @@ public sealed partial class MainPage : Page
     {
         if (_activeTarget == null || _discoveryReport == null) return;
 
-        if (_selectedDistro.Id == "ubuntu" && _selectedWifiProfile != null && _selectedWifiCredentials == null)
+        if (_selectedDistro.Id is "ubuntu" or "zorin" && _selectedWifiProfile != null && _selectedWifiCredentials == null)
         {
             var wifiDialog = new ContentDialog
             {
@@ -631,7 +632,7 @@ public sealed partial class MainPage : Page
             InstallNvidiaDrivers: installNvidia,
             InstallProprietaryCodecs: installCodecs,
             KernelSelection: kernelSelection,
-            WifiNetwork: _selectedDistro?.Id == "ubuntu" ? _selectedWifiCredentials : null
+            WifiNetwork: _selectedDistro?.Id is "ubuntu" or "zorin" ? _selectedWifiCredentials : null
         );
     }
 
@@ -685,7 +686,7 @@ public sealed partial class MainPage : Page
                 BtnUpdateExistingWifi.IsEnabled = false;
                 TxtWifiStatus.Text = profiles.Count == 0
                     ? "No saved Wi-Fi networks were found. Wi-Fi is optional; Ethernet works without this setting."
-                    : "Select a saved network to configure it for Ubuntu, or leave Wi-Fi disabled.";
+                    : "Select a saved network for the installer, or leave Wi-Fi disabled.";
             }
         }
         catch (Exception ex)
@@ -752,8 +753,8 @@ public sealed partial class MainPage : Page
                 credentials.IsOpenNetwork);
             BtnUpdateExistingWifi.IsEnabled = true;
             TxtWifiStatus.Text = credentials.IsOpenNetwork
-                ? $"Open network '{credentials.Ssid}' selected. Ubuntu will connect without a password."
-                : $"Saved key loaded for '{credentials.Ssid}'. It will be added to Ubuntu's installer and Wi-Fi configuration.";
+                ? $"Open network '{credentials.Ssid}' selected. The installer will connect without a password."
+                : $"Saved key loaded for '{credentials.Ssid}'. It will be added to the installer and installed system's Wi-Fi configuration.";
         }
         catch (Exception ex)
         {

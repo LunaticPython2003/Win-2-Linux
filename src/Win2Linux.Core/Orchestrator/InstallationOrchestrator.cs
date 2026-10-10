@@ -61,8 +61,6 @@ public static class InstallationOrchestrator
         CancellationToken ct = default)
     {
         var targetRoot = plan.Target.DriveLetter.TrimEnd('\\', '/');
-        var repoIsoDir      = IsoDownloadService.GetRepoIsoDirectory();
-        var isoStagingDir   = repoIsoDir;
         string? bootStagingDir = null;
         string? efiStagingDir = null;
         string? unattendedDir = null;
@@ -135,21 +133,12 @@ public static class InstallationOrchestrator
             await Task.Delay(200, ct);
 
 
-            // STEP 3: DOWNLOAD ISO / INFERENCE FROM REPO/ISO
-
-            var inferredIso = IsoDownloadService.InferIsoPath(plan.SelectedDistro, repoIsoDir);
-            if (inferredIso != null)
-            {
-                progress.Report(new ProgressUpdate(
-                    3, TotalSteps, "Inferred ISO from repo/iso", 11,
-                    $"[ISO Inference] Detected matching ISO in repo/iso: {Path.GetFileName(inferredIso)}"));
-            }
-            else
-            {
-                progress.Report(new ProgressUpdate(
-                    3, TotalSteps, "Downloading ISO to repo/iso", 11,
-                    $"[ISO Download] Target directory: {repoIsoDir}. Starting download of {plan.SelectedDistro.DisplayName}..."));
-            }
+            // STEP 3: DOWNLOAD ISO / REUSE VERIFIED CACHE
+            // Use the selected data volume, not the application's possibly small workspace drive.
+            var isoStagingDir = IsoDownloadService.GetIsoCacheDirectory(plan.Target.DriveLetter);
+            progress.Report(new ProgressUpdate(
+                3, TotalSteps, "Preparing ISO Cache", 11,
+                $"[ISO Download] Target directory: {isoStagingDir}. Preparing {plan.SelectedDistro.DisplayName}..."));
 
             var isoPath = await IsoDownloadService.DownloadIsoAsync(
                 plan.SelectedDistro, isoStagingDir, progress, ct);
@@ -268,7 +257,7 @@ public static class InstallationOrchestrator
                 var scope = new System.Management.ManagementScope(@"\\.\ROOT\Microsoft\Windows\Storage");
                 scope.Connect();
                 using var searcher = new System.Management.ManagementObjectSearcher(scope,
-                    new System.Management.ObjectQuery($"SELECT PartitionNumber, Size, GptType, Offset FROM MSFT_Partition WHERE DiskNumber = {plan.Target.DiskNumber}"));
+                    new System.Management.ObjectQuery($"SELECT PartitionNumber, Size, GptType, Offset, Guid FROM MSFT_Partition WHERE DiskNumber = {plan.Target.DiskNumber}"));
                 using var coll = searcher.Get();
                 var updatedPartitions = new List<Win2Linux.Core.Models.PartitionInfo>();
                 
@@ -286,7 +275,7 @@ public static class InstallationOrchestrator
                         DriveLetter: null,
                         SizeBytes: pSize,
                         GptType: gptType ?? "",
-                        Guid: null,
+                        Guid: p["Guid"]?.ToString()?.Trim('{', '}'),
                         OffsetBytes: p["Offset"] is null ? null : Convert.ToUInt64(p["Offset"])
                     ));
                 }
@@ -309,13 +298,21 @@ public static class InstallationOrchestrator
                     espResult.PartitionGuid,
                     espResult.OffsetBytes);
                 
-                if (plan.SelectedDistro.Id.ToLowerInvariant() is "ubuntu" or "zorin")
+                if (plan.SelectedDistro.Id.Equals("ubuntu", StringComparison.OrdinalIgnoreCase))
                 {
                     ValidateAutoinstallYaml(unattendedContent);
                 }
 
                 var finalContent = unattendedContent.Replace("\r\n", "\n");
                 await File.WriteAllTextAsync(Path.Combine(unattendedDir, unattendedFilename), finalContent, ct);
+                if (plan.SelectedDistro.Id == "zorin")
+                {
+                    foreach (var script in GenerateZorinInstallerScripts(plan, espResult.PartitionNumber,
+                        espResult.SizeBytes, espResult.PartitionGuid, espResult.OffsetBytes))
+                    {
+                        await File.WriteAllTextAsync(Path.Combine(unattendedDir, script.Key), script.Value.Replace("\r\n", "\n"), ct);
+                    }
+                }
                 
                 // For NoCloud, we must also provide an empty meta-data file
                 if (unattendedFilename == "user-data")
@@ -715,7 +712,7 @@ public static class InstallationOrchestrator
         "ubuntu" => "autoinstall.yaml",
         "fedora" => "kickstart.ks",
         "linuxmint" => "preseed.cfg",
-        "zorin" => "user-data",
+        "zorin" => "preseed.cfg",
         _ => "user-data"
     };
 
@@ -733,9 +730,19 @@ public static class InstallationOrchestrator
             "ubuntu" => GenerateUbuntuAutoinstall(plan, linuxSizeMb, espPartitionNumber, espSizeBytes, espPartitionGuid, espOffsetBytes),
             "fedora" => GenerateFedoraKickstart(plan, linuxSizeMb, espPartitionNumber, espSizeBytes),
             "linuxmint" => GenerateMintPreseed(plan, espPartitionNumber, espSizeBytes),
-            "zorin" => GenerateZorinAutoinstall(plan, linuxSizeMb, espPartitionNumber, espSizeBytes, espPartitionGuid, espOffsetBytes),
+            "zorin" => ZorinPreseedGenerator.Generate(plan, espPartitionNumber, espSizeBytes, espPartitionGuid, espOffsetBytes, GetSha512CryptHash(plan.EffectiveSetupConfig.Password)),
             _ => "# Default unattended configuration\n"
         };
+    }
+
+    public static IReadOnlyDictionary<string, string> GenerateZorinInstallerScripts(
+        InstallationPlan plan, int espPartitionNumber, ulong espSizeBytes,
+        string? espPartitionGuid, ulong? espOffsetBytes)
+    {
+        var scripts = new Dictionary<string, string>();
+        ZorinPreseedGenerator.Generate(plan, espPartitionNumber, espSizeBytes, espPartitionGuid,
+            espOffsetBytes, GetSha512CryptHash(plan.EffectiveSetupConfig.Password), scripts);
+        return scripts;
     }
 
     public static void ValidateAutoinstallYaml(string yamlContent)
@@ -1212,50 +1219,6 @@ public static class InstallationOrchestrator
 
         // Managed SHA-512-crypt hash with a random salt
         return CryptSharp.Crypter.Sha512.Crypt(password);
-    }
-
-    private static string GenerateZorinAutoinstall(InstallationPlan plan, long linuxSizeMb, int espPartitionNumber, ulong espSizeBytes, string? espPartitionGuid, ulong? espOffsetBytes)
-    {
-        var config = plan.EffectiveSetupConfig;
-        var passwordHash = GetSha512CryptHash(config.Password);
-
-        return $$"""
-            #cloud-config
-            autoinstall:
-              version: 1
-              refresh-installer:
-                update: false
-              shutdown: reboot
-              locale: {{config.Locale}}
-              timezone: {{config.Timezone}}
-              keyboard:
-                layout: {{config.KeyboardLayout}}
-              identity:
-                realname: "{{config.RealName.Replace("\"", "\\\"")}}"
-                username: {{config.Username}}
-                hostname: {{config.Hostname}}
-                password: '{{passwordHash}}'
-              {{GenerateStorageConfig(plan, espPartitionNumber, espSizeBytes, espPartitionGuid, espOffsetBytes).TrimStart().Replace("\n", "\n  ")}}
-              packages:
-                - os-prober
-              late-commands:
-                # Fix clock for Windows dual-boot
-                - bash -c "printf '0.0 0 0\n0\nLOCAL\n' > /target/etc/adjtime"
-                # Prepend zorin to BootOrder
-                - >-
-                  bash -c '
-                  ZORIN=$(efibootmgr | grep -oiP "Boot\K[0-9A-F]+(?=.*{{plan.SelectedDistro.UefiBootLabel}})" | head -1);
-                  if [ -n "$ZORIN" ]; then
-                      ORDER=$(efibootmgr | grep -oiP "^BootOrder: \K.*" | sed "s/$ZORIN,\?//; s/,$//");
-                      efibootmgr --bootorder ${ZORIN},${ORDER} || true;
-                  fi'
-                # Regenerate GRUB menu
-                - curtin in-target --target=/target -- bash -c "sed -i '/^#\?GRUB_DISABLE_OS_PROBER/d' /etc/default/grub && echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub"
-                - curtin in-target --target=/target -- bash -c "if ! update-grub; then echo 'Win2Linux - update-grub failed; continuing because UEFI Windows Boot Manager is preserved.'; fi"
-              user-data:
-                runcmd:
-                  - "rm -rf /boot/efi/win2linux /boot/efi/casper /boot/efi/.disk /boot/efi/EFI/boot /boot/efi/boot || true"
-            """;
     }
 
     private static string GenerateFedoraKickstart(InstallationPlan plan, long linuxSizeMb, int espPartitionNumber, ulong espSizeBytes)

@@ -159,7 +159,7 @@
                             Tapped="SelectDistro_Tapped" Tag="zorin">
                         <StackPanel Spacing="8">
                             <Grid>
-                                <TextBlock Text="Zorin OS 17.2" FontWeight="Bold" FontSize="15" />
+                                <TextBlock Text="Zorin OS 18.1" FontWeight="Bold" FontSize="15" />
                                 <Border Background="#13A5E5" HorizontalAlignment="Right" CornerRadius="4" Padding="6,2">
                                     <TextBlock Text="Core" Foreground="White" FontSize="11" FontWeight="Bold" />
                                 </Border>
@@ -440,9 +440,9 @@
 
                     <Border x:Name="PanelWifiConfig" Background="#202020" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="6" Padding="12">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Wi-Fi for Ubuntu installation" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
-                            <TextBlock Text="Choose a saved Windows network. Win2Linux reads its key only after you select it; the key is sent to Ubuntu in the installer network config." FontSize="11" Foreground="#AAAAAA" TextWrapping="Wrap" />
-                            <TextBlock Text="The password is written in plain text to the ESP installer YAML until first-boot cleanup removes it. Ubuntu keeps it in Netplan so Wi-Fi reconnects." FontSize="10" Foreground="#888888" TextWrapping="Wrap" />
+                            <TextBlock Text="Wi-Fi for installation" FontWeight="SemiBold" FontSize="13" Foreground="#0078D4" />
+                            <TextBlock Text="Choose a saved Windows network. Win2Linux reads its key after you select it and configures Wi-Fi for Ubuntu or Zorin." FontSize="11" Foreground="#AAAAAA" TextWrapping="Wrap" />
+                            <TextBlock Text="The saved key is staged on the EFI partition until first-boot cleanup. The installed system retains it to reconnect to Wi-Fi." FontSize="10" Foreground="#888888" TextWrapping="Wrap" />
                             <Grid ColumnSpacing="10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -518,7 +518,7 @@
                             <ComboBoxItem Content="Linux LTS (Long-Term Support — Maximum Stability)" Tag="linux-lts" />
                         </ComboBox>
 
-                        <TextBlock Text="Installs Ubuntu's Canonical-signed 7.3 kernel from the Ubuntu 26.10 Stonking archive, so Secure Boot can stay enabled without MOK enrollment. Requires internet access. Ubuntu's existing kernel remains available as a fallback. The installer limits Stonking packages to the kernel stack and applies Legion CS35L41 speaker routing settings."
+                        <TextBlock Text="On Ubuntu and Zorin, installs a Canonical-signed 7.3 kernel from Ubuntu 26.10 so Secure Boot can stay enabled. Requires internet access. The existing distribution kernel remains available as a fallback. Zorin uses matching prebuilt NVIDIA modules when drivers are selected."
                                    FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
                     </StackPanel>
 

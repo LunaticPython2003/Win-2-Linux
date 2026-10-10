@@ -10,7 +10,7 @@ namespace Win2Linux.Core.Download;
 
 /// <summary>
 /// Handles downloading a Linux distribution ISO and verifying its SHA256 checksum.
-/// Downloads are streamed directly to disk and support resuming via HTTP Range requests.
+/// Downloads are streamed directly to disk; verified local ISOs are reused.
 /// </summary>
 public static class IsoDownloadService
 {
@@ -74,6 +74,17 @@ public static class IsoDownloadService
     public static string GetDefaultIsoDownloadPath(DistroProfile distro)
     {
         return Path.Combine(GetRepoIsoDirectory(), $"{distro.Id}-{distro.DefaultVersion}.iso");
+    }
+
+    /// <summary>Returns the ISO cache on the selected installation volume.</summary>
+    public static string GetIsoCacheDirectory(string targetVolume)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetVolume);
+        // "D:" alone is drive-relative on Windows; append a separator to resolve its root.
+        var root = Path.GetPathRoot(Path.GetFullPath(targetVolume.TrimEnd('\\', '/') + Path.DirectorySeparatorChar));
+        if (string.IsNullOrEmpty(root))
+            throw new ArgumentException("The target volume must have a filesystem root.", nameof(targetVolume));
+        return Path.Combine(root, "win2linux", "iso");
     }
 
     /// <summary>
@@ -172,25 +183,37 @@ public static class IsoDownloadService
     /// If an ISO can be inferred from repo/iso or cache and its hash matches, the download is skipped.
     /// </summary>
     /// <returns>Absolute path to the verified ISO file.</returns>
-    public static async Task<string> DownloadIsoAsync(
+    public static Task<string> DownloadIsoAsync(
         DistroProfile distro,
         string? isoStagingDir,
         IProgress<ProgressUpdate> progress,
         CancellationToken ct = default)
+        => DownloadIsoAsync(distro, isoStagingDir, progress, ct, _http,
+            GetRepoIsoDirectory(), path => new DriveInfo(Path.GetPathRoot(path)!).AvailableFreeSpace);
+
+    internal static async Task<string> DownloadIsoAsync(
+        DistroProfile distro,
+        string? isoStagingDir,
+        IProgress<ProgressUpdate> progress,
+        CancellationToken ct,
+        HttpClient http,
+        string repoIsoDir,
+        Func<string, long> getAvailableFreeSpace)
     {
-        var targetDir = string.IsNullOrWhiteSpace(isoStagingDir) ? GetRepoIsoDirectory() : isoStagingDir;
-        Directory.CreateDirectory(targetDir);
-
-        // Check if matching ISO can be inferred from repo/iso or target directory
-        var inferredPath = InferIsoPath(distro, targetDir) ?? InferIsoPath(distro, GetRepoIsoDirectory());
+        var targetDir = Path.GetFullPath(string.IsNullOrWhiteSpace(isoStagingDir) ? repoIsoDir : isoStagingDir);
         var isoFileName = $"{distro.Id}-{distro.DefaultVersion}.iso";
-        var isoPath = inferredPath ?? Path.Combine(targetDir, isoFileName);
-
-        if (inferredPath != null)
+        // Inferred files are read-only cache candidates, never alternate download destinations.
+        var isoPath = Path.Combine(targetDir, isoFileName);
+        try
         {
-            progress.Report(new ProgressUpdate(3, 10, "ISO Inferred from repo/iso", 22,
-                $"[ISO Inference] Detected pre-existing ISO in repo/iso: {Path.GetFileName(inferredPath)}"));
+            Directory.CreateDirectory(targetDir);
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw StorageFailure(isoPath, ex);
+        }
+        var candidates = new[] { InferIsoPath(distro, targetDir), InferIsoPath(distro, repoIsoDir) }
+            .Where(path => path != null).Distinct(StringComparer.OrdinalIgnoreCase);
 
         // --- Step 1: Fetch expected SHA256 checksum ---
         // NOTE: We do NOT save the sidecar here. The sidecar is only written by VerifyIsoAsync
@@ -199,30 +222,34 @@ public static class IsoDownloadService
         progress.Report(new ProgressUpdate(3, 10, "Downloading ISO", 22,
             $"[ISO Download] Fetching SHA256 checksum for {distro.DisplayName}..."));
 
-        string expectedHash = await FetchExpectedHashAsync(distro, isoPath, saveSidecar: false, ct);
+        string expectedHash = await FetchExpectedHashAsync(distro, isoPath, saveSidecar: false, ct, http);
 
         // --- Step 2: Check local cache / inferred ISO ---
-        if (File.Exists(isoPath) && new FileInfo(isoPath).Length > 0)
+        foreach (var candidate in candidates)
         {
             progress.Report(new ProgressUpdate(3, 10, "Downloading ISO", 23,
-                $"[ISO Download] Verifying integrity of {(inferredPath != null ? "inferred" : "cached")} ISO ({new FileInfo(isoPath).Length / (1024.0 * 1024.0):F0} MB)..."));
+                $"[ISO Download] Verifying cached ISO: {candidate} ({new FileInfo(candidate!).Length / (1024.0 * 1024.0):F0} MB)..."));
 
-            string existingHash = await ComputeFileHashAsync(isoPath, ct);
+            string existingHash = await ComputeFileHashAsync(candidate!, ct);
             if (string.Equals(existingHash, expectedHash, StringComparison.OrdinalIgnoreCase))
             {
                 progress.Report(new ProgressUpdate(3, 10, "ISO Verified from Cache", 30,
                     $"[ISO Download] Cache hit — ISO hash verified ({expectedHash[..16]}...). Skipping download."));
-                return isoPath;
+                return candidate!;
             }
 
             progress.Report(new ProgressUpdate(3, 10, "Downloading ISO", 23,
-                $"[ISO Download] Cached ISO hash mismatch. Re-downloading to {isoPath}..."));
+                $"[ISO Download] Cached ISO hash mismatch: {candidate}. Download destination: {isoPath}."));
         }
 
         // Delete any existing partial/empty file before starting fresh
         if (File.Exists(isoPath))
         {
-            try { File.Delete(isoPath); } catch { }
+            try { File.Delete(isoPath); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw StorageFailure(isoPath, ex);
+            }
         }
 
         // --- Step 3: Build ordered mirror list ---
@@ -253,7 +280,7 @@ public static class IsoDownloadService
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, mirrorUrl);
-                using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
                 var statusCode = (int)response.StatusCode;
                 var contentLength = response.Content.Headers.ContentLength;
@@ -298,38 +325,54 @@ public static class IsoDownloadService
                 }
 
                 // Stream download to disk
+                long availableBytes;
+                try { availableBytes = getAvailableFreeSpace(isoPath); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    throw StorageFailure(isoPath, ex);
+                }
+                AssertAvailableSpace(isoPath, contentLength, availableBytes);
                 totalBytes = contentLength ?? 0;
                 downloadedBytes = 0;
                 double lastReportedPercent = -1;
 
                 using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-                using var fileStream = new FileStream(isoPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-
-                var buffer = new byte[81920];
-                int bytesRead;
-
-                while ((bytesRead = await contentStream.ReadAsync(buffer, ct)) > 0)
+                using (var fileStream = OpenIsoFile(isoPath))
                 {
-                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
-                    downloadedBytes += bytesRead;
+                    var buffer = new byte[81920];
+                    int bytesRead;
 
-                    if (totalBytes > 0)
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, ct)) > 0)
                     {
-                        double downloadPercent = (double)downloadedBytes / totalBytes;
-                        double overallPercent = 22 + downloadPercent * 8;
-                        double roundedPercent = Math.Round(overallPercent, 1);
-                        if (roundedPercent != lastReportedPercent)
+                        try { await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct); }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                         {
-                            lastReportedPercent = roundedPercent;
-                            var mbDown = downloadedBytes / (1024.0 * 1024.0);
-                            var mbTotal = totalBytes / (1024.0 * 1024.0);
-                            progress.Report(new ProgressUpdate(3, 10, "Downloading ISO", roundedPercent,
-                                $"[ISO Download] [{mirrorLabel}] {mbDown:F0} MB / {mbTotal:F0} MB  ({downloadPercent:P0})"));
+                            throw StorageFailure(isoPath, ex);
+                        }
+                        downloadedBytes += bytesRead;
+
+                        if (totalBytes > 0)
+                        {
+                            double downloadPercent = (double)downloadedBytes / totalBytes;
+                            double overallPercent = 22 + downloadPercent * 8;
+                            double roundedPercent = Math.Round(overallPercent, 1);
+                            if (roundedPercent != lastReportedPercent)
+                            {
+                                lastReportedPercent = roundedPercent;
+                                var mbDown = downloadedBytes / (1024.0 * 1024.0);
+                                var mbTotal = totalBytes / (1024.0 * 1024.0);
+                                progress.Report(new ProgressUpdate(3, 10, "Downloading ISO", roundedPercent,
+                                    $"[ISO Download] [{mirrorLabel}] {mbDown:F0} MB / {mbTotal:F0} MB  ({downloadPercent:P0})"));
+                            }
                         }
                     }
-                }
 
-                await fileStream.FlushAsync(ct);
+                    try { await fileStream.FlushAsync(ct); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        throw StorageFailure(isoPath, ex);
+                    }
+                }
                 long finalSize = new FileInfo(isoPath).Length;
 
                 // Reject 0-byte or suspiciously small files
@@ -367,6 +410,16 @@ public static class IsoDownloadService
                     $"[ISO Download] ✓ Downloaded {finalSize / (1024.0 * 1024.0):F0} MB from {mirrorLabel}. Verifying SHA256..."));
                 return isoPath;
             }
+            catch (IsoStorageException)
+            {
+                TryDeletePartialIso(isoPath);
+                throw;
+            }
+            catch (IOException ex) when ((ex.HResult & 0xffff) is 112 or 39)
+            {
+                TryDeletePartialIso(isoPath);
+                throw StorageFailure(isoPath, ex);
+            }
             catch (IsoDownloadException) { throw; }  // Re-throw our own typed exceptions
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -386,6 +439,37 @@ public static class IsoDownloadService
             $"  {isoPath}\n" +
             $"The app will detect it automatically on the next run.");
 
+    }
+
+    internal const long StorageReserveBytes = 256L * 1024 * 1024;
+
+    internal static void AssertAvailableSpace(string isoPath, long? contentLength, long availableBytes)
+    {
+        var downloadBytes = contentLength ?? 0;
+        if (availableBytes < StorageReserveBytes || downloadBytes > availableBytes - StorageReserveBytes)
+            throw new IsoStorageException(
+                $"Not enough free space for the ISO at {isoPath}. " +
+                $"Available: {availableBytes / (1024.0 * 1024 * 1024):F2} GiB; " +
+                $"required: {downloadBytes / (1024.0 * 1024 * 1024):F2} GiB plus 256 MiB free space. " +
+                "Free space on this drive and retry. Changing mirrors cannot fix this storage error.");
+    }
+
+    private static FileStream OpenIsoFile(string isoPath)
+    {
+        try { return new FileStream(isoPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw StorageFailure(isoPath, ex);
+        }
+    }
+
+    private static IsoStorageException StorageFailure(string isoPath, Exception ex)
+        => new($"Cannot write the ISO at {isoPath}: {ex.Message} " +
+            "Check free space and write access on this drive, then retry. Changing mirrors cannot fix this storage error.", ex);
+
+    private static void TryDeletePartialIso(string isoPath)
+    {
+        try { if (File.Exists(isoPath)) File.Delete(isoPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>
@@ -438,6 +522,20 @@ public static class IsoDownloadService
     {
         if (string.IsNullOrWhiteSpace(checksumContent))
             return null;
+
+        // Zorin publishes checksums as edition-labelled HTML, not .iso.sha256 files.
+        // Match the complete version/edition label so Core cannot pick a Pro or older hash.
+        if (isoFileName.StartsWith("Zorin-OS-", StringComparison.OrdinalIgnoreCase))
+        {
+            var label = Path.GetFileNameWithoutExtension(isoFileName).Replace('-', ' ').Replace('_', ' ');
+            var visibleText = System.Net.WebUtility.HtmlDecode(Regex.Replace(checksumContent, "<[^>]+>", " "));
+            visibleText = Regex.Replace(visibleText.Replace('-', ' ').Replace('_', ' '), @"\s+", " ");
+            var publishedHash = Regex.Match(visibleText, Regex.Escape(label) + @"\s*:\s*([0-9a-fA-F]{64})\b", RegexOptions.IgnoreCase);
+            if (publishedHash.Success)
+                return publishedHash.Groups[1].Value.ToLowerInvariant();
+            if (Regex.IsMatch(visibleText, @"Zorin\s+OS\s+\d", RegexOptions.IgnoreCase))
+                return null;
+        }
 
         // 1. Try matching lines containing the full ISO filename (handles Coreutils and BSD/OpenSSL formats)
         // e.g. "HASH  filename" or "SHA256 (filename) = HASH"
@@ -504,7 +602,8 @@ public static class IsoDownloadService
         DistroProfile distro,
         string? isoPath,
         bool saveSidecar,
-        CancellationToken ct)
+        CancellationToken ct,
+        HttpClient? http = null)
     {
         // 1. Check sidecar cache — ONLY when saveSidecar mode is active (i.e. called from VerifyIsoAsync)
         //    AND the ISO actually exists and is non-empty.
@@ -550,10 +649,6 @@ public static class IsoDownloadService
         {
             candidateUrls.Add("https://mirrors.kernel.org/linuxmint/stable/22.1/sha256sum.txt");
         }
-        else if (distro.Id == "zorin")
-        {
-            candidateUrls.Add("https://mirrors.edge.kernel.org/zorinos-isos/17/Zorin-OS-17.2-Core-64-bit.iso.sha256");
-        }
 
         var isoFileName = Path.GetFileName(new Uri(distro.IsoDownloadUrl).AbsolutePath);
         Exception? lastEx = null;
@@ -563,7 +658,7 @@ public static class IsoDownloadService
             try
             {
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                using var resp = await _http.SendAsync(req, ct);
+                using var resp = await (http ?? _http).SendAsync(req, ct);
                 if (resp.IsSuccessStatusCode)
                 {
                     var content = await resp.Content.ReadAsStringAsync(ct);
@@ -574,7 +669,7 @@ public static class IsoDownloadService
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 lastEx = ex;
             }
@@ -594,5 +689,6 @@ public static class IsoDownloadService
     }
 }
 
-public class IsoDownloadException(string message) : Exception(message);
+public class IsoDownloadException(string message, Exception? innerException = null) : Exception(message, innerException);
+public class IsoStorageException(string message, Exception? innerException = null) : IsoDownloadException(message, innerException);
 public class ChecksumMismatchException(string message) : Exception(message);
