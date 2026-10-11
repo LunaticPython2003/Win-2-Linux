@@ -41,12 +41,24 @@ The main constraint to getting started with Linux personally, for me, and a lot 
 - Built with modern .NET 8, C#, and WinUI 3 (Windows App SDK Fluent Design)
 - Protects the Windows system disk from destructive partition operations
 - Boots into a graphical setup window to review all the setups
-- Ubuntu 26 LTS autoinstaller works flawlessly now
+- Fully working autoinstall for Ubuntu 26.04.1 LTS and Zorin OS 18.1 Core
 - Ability to select from multiple kernels. 
 
 ## What's new?
 
-The latest version of Win2Linux now supports fully automated installation for Zorin OS (and Ubuntu) without any manual intervention whatsoever. Lets talk about how this works specifically -
+Win2Linux v1.1.0 supports fully automated installation for Ubuntu and Zorin OS. Both have completed end-to-end installation successfully.
+
+| Distribution | Autoinstall completion | Status |
+| :--- | :--- | :--- |
+| Ubuntu 26.04.1 LTS | 100% | Fully working and verified |
+| Zorin OS 18.1 Core | 100% | Fully working and verified |
+| Fedora 44 | ~60% | Partial support; selection displays a warning that manual steps may be required |
+| Linux Mint 22.1 | ~50% | Unverified; uses the same Ubiquity/preseed configuration approach as Zorin and is expected to work, but has not completed end-to-end verification |
+
+These percentages describe implementation and verification progress, not installation progress or success rates. Ubuntu and Zorin show no autoinstall readiness warning when selected. The disk allocation confirmation remains in place for every distribution.
+
+- The setup and staging views now fill the window width, including after a screen transition or maximization. Distribution cards, hardware status badges, and configuration columns adapt to narrower windows.
+- The unused Rust prototype has been removed. The UI and CLI use the C# `Win2Linux.Core` library directly; Rust and Cargo are not build or runtime requirements.
 
 - Zorin OS 18.1 Core uses **Ubiquity**, so its automated setup is staged as `preseed.cfg` and booted with `automatic-ubiquity`. The profile includes Zorin's `initrd.zstd`, live filesystem, installer manifests, and local `noble` package repository.
 - If Zorin preparation fails, Win2Linux displays the failing stage and error output and saves `/var/log/installer/win2linux-zorin-prepare.log` in the live session. If Wi-Fi setup or the Linux 7.3 download connection fails, a dialog offers Wi-Fi selection, password entry, and a connection retry before partitioning. It runs inside the installer session without requiring a terminal or desktop network menu.
@@ -58,15 +70,15 @@ The latest version of Win2Linux now supports fully automated installation for Zo
 ## Downloads & Releases
 
 ### Download Pre-built Binaries (Recommended)
-You can download the latest pre-compiled releases directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases): <sup>[1]</sup>
+You can download the latest published binaries directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases). The v1.1.0 build is staged as a draft until it is published.
 
 | Package | Format | Description |
 | :--- | :--- | :--- |
-| **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Windows Installer (`.exe`) | **Recommended for most users.** Standalone setup wizard that installs the WinUI 3 Fluent application, creates Start Menu & Desktop shortcuts, and configures administrator elevation. Completely self-contained with zero external dependencies required. |
-| **[win2linux-cli-v1.0.0-x64.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Standalone CLI (`.exe`) | Standalone single-file command-line utility for advanced terminal users and automated deployment scripts. Zero dependencies. |
+| **[Win2Linux Setup](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Windows Installer (`.exe`) | **Recommended for most users.** Standalone setup wizard that installs the WinUI 3 Fluent application, creates Start Menu & Desktop shortcuts, and configures administrator elevation. Completely self-contained with zero external dependencies required. |
+| **[Win2Linux CLI](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** | Standalone CLI (`.exe`) | Standalone single-file command-line utility for advanced terminal users and automated deployment scripts. Zero dependencies. |
 
 #### Quick Start from Release:
-1. Download **[Win2Linux-v1.0.0-Setup.exe](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** and run the installer.
+1. Download **[Win2Linux Setup](https://github.com/LunaticPython2003/Win-2-Linux/releases/latest)** and run the installer.
 2. Launch **Win-2-Linux** (accept the Windows UAC Administrator prompt).
 3. Select your desired Linux distribution (Fedora, Ubuntu, Linux Mint, or Zorin OS) and choose how much disk space to allocate from your secondary drive (`D:`).
 4. Click **Stage Dual-Boot Environment**. Win-2-Linux safely shrinks the volume, provisions a dedicated EFI system partition, downloads and verifies the official Microsoft-signed bootloader and live root files, and configures your UEFI boot menu.
@@ -102,8 +114,8 @@ cd Win-2-Linux
 
 #### 2. Run Directly in Development
 Launch the WinUI 3 desktop app directly with elevated permissions:
-```cmd
-Start-Win2Linux.cmd
+```powershell
+.\Start-Win2Linux.ps1
 ```
 *Alternatively, run from an elevated PowerShell terminal:*
 ```powershell
@@ -115,7 +127,7 @@ To produce self-contained, standalone executables:
 
 ```powershell
 # Compile the WinUI 3 Fluent UI desktop app (Unpackaged, Self-Contained)
-dotnet publish src\Win2Linux.UI\Win2Linux.UI.csproj -c Release -r win-x64 --self-contained true -o dist\Win2Linux-v1.0.0-win-x64
+dotnet publish src\Win2Linux.UI\Win2Linux.UI.csproj -c Release -r win-x64 --self-contained true -o dist\Win2Linux-v1.1.0-win-x64
 
 # Compile the standalone single-file CLI executable
 dotnet publish src\Win2Linux.Cli\Win2Linux.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o dist\cli
@@ -125,7 +137,7 @@ dotnet publish src\Win2Linux.Cli\Win2Linux.Cli.csproj -c Release -r win-x64 --se
 Package the compiled desktop application into a standalone setup wizard:
 ```powershell
 iscc installer\Win2Linux-Setup.iss
-# Generates dist\Win2Linux-v1.0.0-Setup.exe
+# Generates dist\Win2Linux-v1.1.0-Setup.exe
 ```
 
 #### 5. Run Automated Tests
@@ -164,7 +176,8 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [ ] Add support for more bootloaders
 - [ ] Add support for more UEFI boot entries
 - [ ] Add support for automatically signing unsupported distros for Secure Boot
-- [x] Make it possible to completely bypass the need for booting into installer - 50 % complete (Fully tested support for Ubuntu and Zorin, and partial support for Fedora)
+- [x] Fully automated installation for Ubuntu and Zorin
+- [ ] Complete Fedora autoinstall support and verify Linux Mint end to end
 - [ ] Bring your own ISO support
 
 ## Screenshots
@@ -176,5 +189,4 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 
 
 ## References
-[1] Builds for the latest commits have not been released yet. Not because the changes are thermonuclear in nature, but because I wanted to rigorously test everything before a regular release. If you want to test the latest changes yourself, simply clone the repository and run `Start-Win2Linux.cmd` or `dotnet run`. <br>
-[2] Ubuntu's unattended installation is natively supported by Canonical's newly developed subiquity installer and therefore, is the most stbale and easy to setup. Fedora's installation works, but the system is not as robust as Ubuntu and has some refinement to be done.
+Ubuntu uses Subiquity autoinstall. Zorin and Linux Mint use Ubiquity/preseed, while Fedora uses Anaconda Kickstart. Ubuntu and Zorin have been verified end to end; Fedora is partial and Linux Mint remains unverified.

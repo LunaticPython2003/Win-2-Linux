@@ -1,6 +1,8 @@
 ; Win-2-Linux Inno Setup Installer Script
 #define MyAppName "Win-2-Linux"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+#define MyAppVersion "1.1.0"
+#endif
 #define MyAppPublisher "LunaticPython2003"
 #define MyAppURL "https://github.com/LunaticPython2003/Win-2-Linux"
 #define MyAppExeName "Win2Linux.UI.exe"
@@ -19,7 +21,7 @@ ArchitecturesAllowed=x64compatible
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=..\dist
-OutputBaseFilename=Win2Linux-v1.0.0-Setup
+OutputBaseFilename=Win2Linux-v{#MyAppVersion}-Setup
 SetupIconFile=..\src\Win2Linux.UI\Assets\AppIcon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
@@ -33,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist\Win2Linux-v1.0.0-win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Win2Linux-v{#MyAppVersion}-win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\AppIcon.ico"

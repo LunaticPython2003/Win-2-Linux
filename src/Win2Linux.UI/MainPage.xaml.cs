@@ -25,6 +25,7 @@ public sealed partial class MainPage : Page
     private SavedWifiProfile? _selectedWifiProfile;
     private WifiNetworkConfiguration? _selectedWifiCredentials;
     private bool _isUpdatingWifiOptions;
+    private bool _isShowingDistroWarning;
     private int _wifiSelectionVersion;
 
     private double _totalDiskGb = 953;
@@ -117,10 +118,59 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void SelectDistro_Tapped(object sender, TappedRoutedEventArgs e)
+    private void MainScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (LayoutRoot == null || ConfigurationGrid == null) return;
+
+        var horizontalMargin = e.NewSize.Width < 720 ? 20 : 36;
+        LayoutRoot.Margin = new Thickness(horizontalMargin, 20, horizontalMargin, 40);
+        var contentWidth = Math.Max(0, e.NewSize.Width - horizontalMargin * 2 - 16);
+
+        // Measure against the viewport so changing screens cannot leave an old content width behind.
+        var cardColumns = contentWidth >= 1040 ? 4 : contentWidth >= 600 ? 2 : 1;
+        ArrangeGrid(DistroGrid, cardColumns);
+        ArrangeGrid(PreflightGrid, cardColumns);
+        ArrangeGrid(ConfigurationGrid, contentWidth >= 800 ? 2 : 1);
+
+        var inlineHeader = contentWidth >= 900;
+        SetupHeader.ColumnDefinitions[1].Width = inlineHeader ? GridLength.Auto : new GridLength(0);
+        Grid.SetColumn(BtnRescan, inlineHeader ? 1 : 0);
+        Grid.SetRow(BtnRescan, inlineHeader ? 0 : 1);
+        BtnRescan.HorizontalAlignment = inlineHeader ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+    }
+
+    private static void ArrangeGrid(Grid grid, int columns)
+    {
+        if (grid.ColumnDefinitions.Count != columns)
+        {
+            grid.ColumnDefinitions.Clear();
+            for (var column = 0; column < columns; column++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        var rows = (grid.Children.Count + columns - 1) / columns;
+        if (grid.RowDefinitions.Count != rows)
+        {
+            grid.RowDefinitions.Clear();
+            for (var row = 0; row < rows; row++)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        for (var index = 0; index < grid.Children.Count; index++)
+        {
+            if (grid.Children[index] is FrameworkElement child)
+            {
+                Grid.SetColumn(child, index % columns);
+                Grid.SetRow(child, index / columns);
+            }
+        }
+    }
+
+    private async void SelectDistro_Tapped(object sender, TappedRoutedEventArgs e)
     {
         try
         {
+            if (_isShowingDistroWarning) return;
             if (sender is not Border tappedBorder || tappedBorder.Tag is not string distroId) return;
 
             var distro = DistroRegistry.SupportedDistributions.FirstOrDefault(d => d.Id == distroId);
@@ -169,6 +219,33 @@ public sealed partial class MainPage : Page
             if (TxtHostname != null && (TxtHostname.Text.EndsWith("-dualboot") || TxtHostname.Text.EndsWith("-pc")))
             {
                 TxtHostname.Text = $"{distro.Id}-dualboot";
+            }
+
+            var warning = distroId switch
+            {
+                "fedora" => "Fedora autoinstall support is approximately 60% complete. Its Kickstart setup is partially implemented and still needs refinement. Installation may require manual steps after reboot and is not yet fully verified.",
+                "linuxmint" => "Linux Mint autoinstall support is approximately 50% complete. It uses the same Ubiquity/preseed installer configuration approach as Zorin, so it should work, but an end-to-end Linux Mint installation has not been verified. Manual steps may be required after reboot.",
+                _ => null
+            };
+
+            if (warning != null && XamlRoot != null)
+            {
+                _isShowingDistroWarning = true;
+                try
+                {
+                    var dialog = new ContentDialog
+                    {
+                        Title = $"{distro.DisplayName}: autoinstall warning",
+                        Content = warning,
+                        CloseButtonText = "Understood",
+                        XamlRoot = XamlRoot
+                    };
+                    await dialog.ShowAsync();
+                }
+                finally
+                {
+                    _isShowingDistroWarning = false;
+                }
             }
         }
         catch (Exception ex)
@@ -316,7 +393,9 @@ public sealed partial class MainPage : Page
         // Instantly switch view to dedicated Staging Dashboard
         SetupView.Visibility = Visibility.Collapsed;
         StagingView.Visibility = Visibility.Visible;
-        MainScrollViewer.ChangeView(null, 0, null);
+        // Apply the new view's layout before resetting the scroll position.
+        LayoutRoot.UpdateLayout();
+        MainScrollViewer.ChangeView(0, 0, 1, disableAnimation: true);
 
         TxtStagingTitle.Text = $"Staging {_selectedDistro.DisplayName}...";
         TxtTargetDistro.Text = _selectedDistro.DisplayName;
