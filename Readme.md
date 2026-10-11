@@ -70,7 +70,7 @@ These percentages describe implementation and verification progress, not install
 ## Downloads & Releases
 
 ### Download Pre-built Binaries (Recommended)
-You can download the latest published binaries directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases). The v1.1.0 build is staged as a draft until it is published.
+You can download the latest published binaries directly from [GitHub Releases](https://github.com/LunaticPython2003/Win-2-Linux/releases). The [v1.1.0 Windows installer](https://github.com/LunaticPython2003/Win-2-Linux/releases/download/v1.1.0/Win2Linux-v1.1.0-Setup.exe) is now available.
 
 | Package | Format | Description |
 | :--- | :--- | :--- |
