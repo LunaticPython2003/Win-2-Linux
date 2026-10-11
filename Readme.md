@@ -55,16 +55,16 @@ Win2Linux v1.1.0 supports fully automated installation for Ubuntu and Zorin OS. 
 | Fedora 44 | ~60% | Partial support; selection displays a warning that manual steps may be required |
 | Linux Mint 22.1 | ~50% | Unverified; uses the same Ubiquity/preseed configuration approach as Zorin and is expected to work, but has not completed end-to-end verification |
 
-These percentages describe implementation and verification progress, not installation progress or success rates. Ubuntu and Zorin show no autoinstall readiness warning when selected. The disk allocation confirmation remains in place for every distribution.
+Note - These percentages describe implementation and verification progress, not installation progress or success rates. Ubuntu and Zorin show no autoinstall readiness warning when selected. The disk allocation confirmation remains in place for every distribution.
 
+### [UI and codebase changes]
 - The setup and staging views now fill the window width, including after a screen transition or maximization. Distribution cards, hardware status badges, and configuration columns adapt to narrower windows.
 - The unused Rust prototype has been removed. The UI and CLI use the C# `Win2Linux.Core` library directly; Rust and Cargo are not build or runtime requirements.
 
+### [Autoinstall notices]
+- Ubuntu installation now works flawlessly powered by Subiquity installer's native support for autoinstalls with `autoinstall.yaml`.
 - Zorin OS 18.1 Core uses **Ubiquity**, so its automated setup is staged as `preseed.cfg` and booted with `automatic-ubiquity`. The profile includes Zorin's `initrd.zstd`, live filesystem, installer manifests, and local `noble` package repository.
-- If Zorin preparation fails, Win2Linux displays the failing stage and error output and saves `/var/log/installer/win2linux-zorin-prepare.log` in the live session. If Wi-Fi setup or the Linux 7.3 download connection fails, a dialog offers Wi-Fi selection, password entry, and a connection retry before partitioning. It runs inside the installer session without requiring a terminal or desktop network menu.
-- Zorin's live Wi-Fi profile is loaded from `/run/NetworkManager/system-connections/` with root-only permissions. Connection errors show NetworkManager's response; a failed download check offers a retry without asking for the Wi-Fi password again.
-- The Linux 7.3 option on Zorin installs versioned Canonical-signed Ubuntu kernel packages, the compatible `run-parts` utility, and, when requested, matching signed NVIDIA modules (if selected) with GPU-compatible desktop userspace packages from Zorin's base repositories. Other Ubuntu 26.10 packages are blocked by APT pinning. The stock Zorin kernel remains available. Internet access is required for the post-install setup; a failure leaves a log at `/target/var/log/win2linux-zorin-setup.log` and disables automatic reboot.
-- ISO downloads are cached under `win2linux\iso` on the selected installation volume (for example, `D:\win2linux\iso`). Existing ISOs in `repo\iso` can still be reused after checksum verification. The downloader checks available space before transferring an ISO and stops immediately on local storage errors.
+- The Linux 7.3 kernel option has been verirified to work on Ubuntu and Zorin installs. Both 24.04 LTS and Zorin 18 installs use Canonical-signed Ubuntu kernel packages, the compatible `run-parts` utility, and, when requested, matching signed NVIDIA modules (if selected) with GPU-compatible desktop userspace packages from Zorin's base repositories. Other Ubuntu 26.10 packages are blocked by APT pinning. The stock Zorin kernel remains available. Internet access is required for the post-install setup; a failure leaves a log at `/target/var/log/win2linux-zorin-setup.log` and disables automatic reboot.
 
 
 ## Downloads & Releases
@@ -152,17 +152,13 @@ This software can modify disk partitions.
 
 Although Win-2-Linux is designed to protect the Windows system disk, partition manipulation always carries a risk of data loss.
 
-Before using it:
+Recommended steps before using it:
 
 - Back up your data.
-- Do not rely on this project as your only protection against:
-- power failure
-- disk failure
-- firmware bugs
-- filesystem corruption
-- unexpected Windows updates
-- user error
-- hardware failure
+- Verify the autoinstall integrity with a VM before attempting permanent disk manipulation operations
+- Have a general understanding about Linux, and to some extenet, the installation process so that diagnosis should any problems occur, is easy.
+- Proceed with the installer recommended distros; other distros work with varying levels of success but might require manual intevention or diagnosis. <b> Proceed with those configurations with caution. </b>
+- Before raising an issue, plese attach supporting documentations detailing the error which include but not limited to screenshots/snapshots of the errors, relevant logs generated and a detailed description of the error. 
 
 If the installer detects an unsafe configuration, do not bypass the safety checks.
 
@@ -182,11 +178,10 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 
 ## Screenshots
 ![Installation screen](assets/image.png) <br>
-<b> Installation screen <br> <br>
-
+<b> Installation screen </b> <br> <br>
+![Installation screen - contd](assets/image-2.png)
+<b> Installation screen 2 </b>
+<br> <br>
 ![Distro selection](assets/image-1.png) <br>
 <b> Distro selection </b> <br>
 
-
-## References
-Ubuntu uses Subiquity autoinstall. Zorin and Linux Mint use Ubiquity/preseed, while Fedora uses Anaconda Kickstart. Ubuntu and Zorin have been verified end to end; Fedora is partial and Linux Mint remains unverified.
