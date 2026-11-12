@@ -175,6 +175,7 @@ The installer is currently limited to Microsoft signed Linux distros because of 
 - [x] Fully automated installation for Ubuntu and Zorin
 - [ ] Complete Fedora autoinstall support and verify Linux Mint end to end
 - [ ] Bring your own ISO support
+- [ ] Initial support for Mac OS 26
 
 ## Screenshots
 ![Installation screen](assets/image.png) <br>
